@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Painel Custo x SLA</title>
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Figtree:wght@400;500;600;700&display=swap">
+<!-- Biblioteca oficial do Supabase (cliente JavaScript v2) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- O leitor de Excel (SheetJS) é carregado sob demanda, só quando um editor importa uma planilha -->
+<style>
+/* Layout: navy filter rail on the left, KPI strip + card grid on the right; rail stacks on top at phone width */
+:root{
+  --bg:#eef3f9; --card:#ffffff; --line:#dfe6ef; --track:#edf1f6;
+  --ink:#10284a; --ink2:#4a5a72; --muted:#7d8aa0;
+  --navy:#0d2a4f; --navy2:#16396a; --navy-ink:#e8eef8; --navy-muted:#9fb3d1;
+  --blue:#2f6db5; --blue-lt:#8fb3df; --wine:#a3416f; --orange:#e08a2e; --teal:#1f9e8f; --violet:#8a63c7; --gray:#9aa5b1;
+  --good:#1d8a4e; --good-bg:#e3f4ea; --bad:#c2352b; --bad-bg:#fbe6e4; --info-bg:#e6f0fb;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:12px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b1524; --card:#122036; --line:#223550; --track:#1a2b44;
+  --ink:#e6edf7; --ink2:#b1bfd3; --muted:#8395ae;
+  --navy:#081628; --navy2:#12294a; --navy-ink:#e8eef8; --navy-muted:#8fa5c6;
+  --blue:#5b93d6; --blue-lt:#2f5c91; --wine:#b04c86; --orange:#eb9a44; --teal:#27a994; --violet:#a383dc; --gray:#8c98a8;
+  --good:#5cc98a; --good-bg:#15372a; --bad:#f07a70; --bad-bg:#3d1c1c; --info-bg:#142c4a;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1524; --card:#122036; --line:#223550; --track:#1a2b44;
+  --ink:#e6edf7; --ink2:#b1bfd3; --muted:#8395ae;
+  --navy:#081628; --navy2:#12294a; --navy-ink:#e8eef8; --navy-muted:#8fa5c6;
+  --blue:#5b93d6; --blue-lt:#2f5c91; --wine:#b04c86; --orange:#eb9a44; --teal:#27a994; --violet:#a383dc; --gray:#8c98a8;
+  --good:#5cc98a; --good-bg:#15372a; --bad:#f07a70; --bad-bg:#3d1c1c; --info-bg:#142c4a;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px}
+.app{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}
+aside{min-width:0;background:linear-gradient(180deg,var(--navy2),var(--navy));color:var(--navy-ink);padding:22px 18px;display:flex;flex-direction:column;gap:16px}
+.brand{text-align:center;padding-bottom:4px}
+.brand .logo{font-family:var(--f-display);font-weight:900;font-style:italic;font-size:38px;letter-spacing:-1px;line-height:1}
+.brand .logo span{color:var(--orange)}
+.brand .wm{font-family:var(--f-display);font-weight:800;font-size:13px;letter-spacing:.3em;padding-left:.3em;color:rgba(255,255,255,.28);margin-top:6px;user-select:none}
+.brand .sub{font-family:var(--f-display);font-size:10px;letter-spacing:.28em;color:var(--navy-muted);margin-top:6px;text-transform:uppercase}
+.upload{display:flex;flex-direction:column;gap:6px;text-align:center}
+.btn{font:700 14px var(--f-display);border:0;border-radius:10px;padding:12px 14px;cursor:pointer;background:var(--blue);color:#fff;width:100%}
+.btn:hover{filter:brightness(1.08)}.btn:focus-visible,select:focus-visible,input:focus-visible,th:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.upload small{color:var(--navy-muted);font-size:11px;line-height:1.4}
+.ftitle{display:flex;justify-content:space-between;align-items:center;font:800 14px var(--f-display);letter-spacing:.08em;margin-top:4px}
+.ftitle button{background:none;border:0;color:var(--navy-muted);font:600 12px var(--f-body);cursor:pointer}
+.ftitle button:hover{color:#fff}
+.field{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+.field label{font:700 10px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--navy-muted)}
+.field select,.field input{width:100%;min-width:0;max-width:100%;background:var(--navy);color:var(--navy-ink);border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:8px 9px;font:600 13px var(--f-body);color-scheme:dark}
+.frow{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+main{padding:22px 24px 40px;display:flex;flex-direction:column;gap:16px;min-width:0}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font:900 30px var(--f-display);margin:0;letter-spacing:-.5px;color:var(--ink)}
+header p{margin:2px 0 0;color:var(--ink2);font-size:13px}
+.stamp{font-size:12px;color:var(--ink2)}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 12px;border-top:4px solid var(--blue);min-width:0}
+.kpi .l{font:700 10.5px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.kpi .v{font:800 clamp(15px,1.12vw,21px) var(--f-display);margin:6px 0 4px;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.02em}
+.kpi .s{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:4px;font:700 11px var(--f-body);padding:2px 8px;border-radius:99px}
+.pill.ok{background:var(--good-bg);color:var(--good)}.pill.no{background:var(--bad-bg);color:var(--bad)}
+.note{background:var(--info-bg);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;font-size:12.5px;color:var(--ink);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.c7{grid-column:span 7}.c5{grid-column:span 5}.c6{grid-column:span 6}.c4{grid-column:span 4}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.card h2{font:800 16px var(--f-display);margin:0;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
+.card .d{font-size:12px;color:var(--ink2);margin-top:-8px}
+.chead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.chead select{max-width:100%;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:600 12px var(--f-body)}
+/* horizontal bars */
+.hb{display:grid;grid-template-columns:minmax(110px,190px) minmax(0,1fr) 88px;gap:6px 10px;align-items:center}
+.hb .lab{text-align:right;font:700 11.5px var(--f-display);line-height:1.15;min-width:0}
+.hb .lab small{display:block;font:500 10px var(--f-body);color:var(--muted)}
+.hb .tr{height:22px;background:var(--track);border-radius:4px;position:relative}
+.hb .bar{height:100%;border-radius:0 4px 4px 0;min-width:3px}
+.hb .val{font:700 12px var(--f-body);font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:6px;padding:3px 6px;text-align:center;white-space:nowrap}
+.meta-line{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--bad)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend b{color:var(--ink);font-variant-numeric:tabular-nums;margin-left:4px}
+.donut{display:flex;flex-direction:column;align-items:center;gap:14px}
+.donut svg{width:210px;max-width:100%;height:auto}
+svg text{fill:var(--ink2);font-family:var(--f-body)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+th{font:700 10.5px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);text-align:right;padding:8px 10px;border-bottom:2px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+th:first-child,td:first-child{text-align:left}
+th.sorted::after{content:" ▾"}th.sorted.asc::after{content:" ▴"}
+td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+tbody tr:hover{background:var(--track)}
+tfoot td{font-weight:800;border-top:2px solid var(--line)}
+.more{align-self:flex-start;background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 12px;font:600 12px var(--f-body);cursor:pointer}.more:hover{background:var(--track)}
+.empty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--card);font-size:12px;padding:7px 10px;border-radius:8px;z-index:9;max-width:260px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+#tip b{font-family:var(--f-display)}
+.btn.pub{background:transparent;border:1.5px solid rgba(255,255,255,.55)}.btn.pub:not(:disabled):hover{background:rgba(255,255,255,.1)}.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.toast{font-size:12px;color:var(--navy-ink);background:rgba(255,255,255,.08);border-radius:8px;padding:8px}
+@media (max-width:1300px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.c7,.c5,.c8,.c4{grid-column:span 12}.c6{grid-column:span 6}}
+@media (max-width:860px){.app{grid-template-columns:minmax(0,1fr)}.c6{grid-column:span 12}main{padding:18px 16px 32px}aside{padding:18px 16px}}
+@media (max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.hb{grid-template-columns:minmax(90px,120px) minmax(0,1fr) 78px}h1{font-size:24px}}
+</style>
+<style>
+/* --- Integração Supabase: login de editor, carregamento e mensagens --- */
+.auth{display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--navy-muted);text-align:center}
+.auth form{display:flex;flex-direction:column;gap:8px;text-align:left}
+.linkbtn{background:none;border:0;color:var(--navy-muted);font:600 12px var(--f-body);cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:2px}
+.linkbtn:hover{color:#fff}.linkbtn:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.auth .who{color:var(--navy-ink);word-break:break-all}
+.note.err{background:var(--bad-bg);color:var(--bad)}
+main.loading .kpis,main.loading .grid{opacity:.55;transition:opacity .15s}
+.progress{height:6px;background:rgba(255,255,255,.12);border-radius:99px;overflow:hidden;margin-top:6px}
+.progress i{display:block;height:100%;background:var(--orange);width:0;transition:width .2s}
+</style>
+</head>
+<body>
+
+<div class="app">
+<aside>
+  <div class="brand"><div class="logo">Peça <span>já</span></div><div class="wm" aria-label="Matheus Pereira">MATHEUS PEREIRA</div><div class="sub">Logística em movimento</div></div>
+
+  <!-- Acesso do editor (Supabase Auth). Visitantes só leem a base publicada. -->
+  <div class="auth" id="auth">
+    <button type="button" class="linkbtn" id="loginOpen">🔒 Acesso do administrador</button>
+    <form id="loginForm" hidden autocomplete="on">
+      <div class="field"><label for="lgEmail">E-mail</label><input type="email" id="lgEmail" autocomplete="username" required></div>
+      <div class="field"><label for="lgPass">Senha</label><input type="password" id="lgPass" autocomplete="current-password" required></div>
+      <button class="btn" type="submit" id="lgBtn">Entrar</button>
+      <button type="button" class="linkbtn" id="loginCancel">Cancelar</button>
+    </form>
+    <div id="logged" hidden><span class="who" id="whoami"></span> · <button type="button" class="linkbtn" id="logout">Sair</button><div id="noEd" hidden>Esta conta não tem permissão de edição.</div></div>
+  </div>
+
+  <div class="upload">
+    <button class="btn ed" id="upBtn" type="button" hidden>① ⬆ Carregar outra base Excel</button>
+    <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.csv,.json" hidden>
+    <small id="baseInfo"></small>
+    <div class="toast" id="toast" hidden></div>
+    <button class="btn pub ed" id="pubBtn" type="button" disabled hidden>② ✔ Publicar esta base para todos</button>
+    <small id="pubHint" class="ed" hidden>Carregue uma planilha no botão ① para liberar a publicação.</small>
+  </div>
+  <div class="ftitle">FILTROS <button type="button" id="clear">↺ Limpar</button></div>
+  <div class="frow">
+    <div class="field"><label for="dIni">Data inicial</label><input type="date" id="dIni"></div>
+    <div class="field"><label for="dFim">Data final</label><input type="date" id="dFim"></div>
+  </div>
+  <div class="field"><label for="f_tipo">Tipo de venda</label><select id="f_tipo"></select></div>
+  <div class="field"><label for="f_seg">Segmento</label><select id="f_seg"></select></div>
+  <div class="field"><label for="f_par">Transportadora</label><select id="f_par"></select></div>
+  <div class="field"><label for="f_exp">Tipo expedição</label><select id="f_exp"></select></div>
+  <div class="field"><label for="f_eq">Equipe</label><select id="f_eq"></select></div>
+  <div class="field"><label for="f_emp">Filial</label><select id="f_emp"></select></div>
+  <!-- O valor da meta vem do banco (tabela painel_config). Só editores podem alterar. -->
+  <div class="field"><label for="meta">Meta de custo logístico (%)</label><input type="number" id="meta" step="0.01" min="0" max="100" readonly title="Definida por quem administra o painel"></div>
+</aside>
+
+<main id="main">
+  <header>
+    <div><h1>Painel Custo x SLA</h1><p>Custo de frete e SLA de entrega por tipo de venda, transportadora e filial</p></div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <div class="note err" id="err" role="alert" hidden></div>
+  <section class="kpis" id="kpis"></section>
+  <div class="note">ⓘ SLA exibido neste painel = MÉDIA dos registros válidos. "RECUSADA" e vazios não entram. % de custo = custo de frete ÷ valor da nota fiscal.</div>
+
+  <section class="grid">
+    <div class="card c7">
+      <div><h2>Média de SLA por tipo de venda</h2></div>
+      <div class="d">Laranja = atenção: tipo de venda com SLA acima da média geral do filtro. Formato: horas (hh:mm:ss) ou dias + horas.</div>
+      <div id="chSlaTipo"></div>
+    </div>
+    <div class="card c5">
+      <div><h2>Participação por transportadora</h2></div>
+      <div class="d">Participação calculada por quantidade de entregas.</div>
+      <div id="chDonut" class="donut"></div>
+    </div>
+
+    <div class="card c6">
+      <div class="chead"><h2>SLA médio por transportadora</h2>
+        <select id="slaSeg" aria-label="Segmento do gráfico"></select></div>
+      <div class="d" id="slaSegD"></div>
+      <div id="chSlaPar"></div>
+    </div>
+    <div class="card c6">
+      <div><h2>Custo logístico por transportadora × meta</h2></div>
+      <div class="d" id="metaD"></div>
+      <div id="chCustoPar"></div>
+    </div>
+
+    <div class="card c8">
+      <div><h2>Faturamento e custo por mês</h2></div>
+      <div class="d">Evolução mensal conforme os filtros. Mesmo eixo em R$; o % de custo do mês aparece abaixo de cada mês.</div>
+      <div id="chMes"></div>
+    </div>
+    <div class="card c4">
+      <div><h2>Custo por segmento</h2></div>
+      <div class="d">% de custo sobre faturamento, maiores segmentos.</div>
+      <div id="chSeg"></div>
+    </div>
+
+    <div class="card c12">
+      <div><h2>Custo de frete por tipo de venda</h2></div>
+      <div class="d">Clique no título da coluna para ordenar.</div>
+      <div class="tw" id="tbTipo"></div>
+    </div>
+    <div class="card c12">
+      <div><h2>Custo e SLA por filial</h2></div>
+      <div class="d">Clique no título da coluna para ordenar.</div>
+      <div class="tw" id="tbEmp"></div>
+      <button type="button" id="moreEmp" class="more" hidden>Mostrar todas as filiais</button>
+    </div>
+  </section>
+</main>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+// =====================================================================
+// CONFIGURAÇÃO DO SUPABASE
+// Supabase → seu projeto → Project Settings → API (veja o README.md)
+// Use SOMENTE a "Project URL" e a chave pública "anon" / "publishable".
+// NUNCA coloque aqui a "service_role" / "secret" key nem a senha do banco.
+// =====================================================================
+
+const SUPABASE_URL = 'COLE_SUA_URL_AQUI';
+const SUPABASE_ANON_KEY = 'COLE_SUA_ANON_KEY_AQUI';
+
+// =====================================================================
+
+(function(){
+const $=s=>document.querySelector(s);
+const brl=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const brlK=v=>v>=1e6?'R$ '+(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})+' mi':v>=1e3?'R$ '+(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil':'R$ '+v.toLocaleString('pt-BR',{maximumFractionDigits:0});
+const pct=v=>isFinite(v)?(v*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'–';
+const int=v=>(+v||0).toLocaleString('pt-BR');
+const p2=n=>String(n).padStart(2,'0');
+function hms(sec){if(sec==null||!isFinite(sec))return '–';sec=Math.round(sec);const d=Math.floor(sec/86400);let r=sec%86400;const h=Math.floor(r/3600),m=Math.floor(r%3600/60),s=r%60;
+  return d>0?`${d}d ${p2(h)}:${p2(m)}`:`${p2(h)}:${p2(m)}:${p2(s)}`}
+const MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const MESF=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const fmtDate=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
+const fmtDateTime=s=>s?new Date(s).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Sao_Paulo'}):'';
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+// Cores por transportadora: apenas apresentação (não é dado de negócio)
+const PCOL={Shippify:'var(--blue)',Lalamove:'var(--wine)',Uber:'var(--teal)',Outros:'var(--gray)'};
+const EXTRA=['var(--violet)','var(--gray)'];
+function parColor(name,i){return PCOL[name]||EXTRA[i%EXTRA.length]}
+
+// ---------------------------------------------------------------------
+// Conexão
+// ---------------------------------------------------------------------
+const CONFIG_OK=/^https?:\/\//.test(SUPABASE_URL)&&!/COLE_/.test(SUPABASE_URL+SUPABASE_ANON_KEY);
+const supabaseClient=(CONFIG_OK&&window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY):null;
+
+// Mensagens amigáveis (o detalhe técnico vai só para o console)
+function friendly(e){
+  const m=String(e&&(e.message||e)||''),c=e&&e.code;
+  if(/Failed to fetch|NetworkError|Load failed|fetch/i.test(m)&&!c)return 'Sem conexão com o banco de dados. Verifique sua internet e tente novamente.';
+  if(c==='42501'||/permission|row-level security|JWT/i.test(m))return 'Você não tem permissão para esta ação. Entre com uma conta de editor.';
+  if(c==='PGRST202'||c==='42883'||c==='PGRST205'||c==='42P01')return 'O banco de dados ainda não foi configurado corretamente. Avise o administrador do painel.';
+  if(c==='57014')return 'A consulta demorou demais. Tente um período ou filtro menor.';
+  if(c==='23514'||c==='22P02'||c==='22003'||c==='22007'||c==='22008')return 'A planilha tem valores fora do formato esperado (datas, números ou SLA).';
+  if(/Envio incompleto/i.test(m))return 'O envio da base ficou incompleto. Carregue a planilha novamente antes de publicar.';
+  if(/Rascunho não encontrado/i.test(m))return 'Este rascunho não existe mais (talvez outra pessoa publicou ou carregou outra base). Carregue a planilha novamente.';
+  return 'Não foi possível concluir a operação agora. Tente de novo em instantes.';
+}
+async function rpc(fn,args){
+  const {data,error}=await supabaseClient.rpc(fn,args||{});
+  if(error){console.error(`Erro ao executar ${fn}:`,error);throw error}
+  return data;
+}
+function showErr(msg){const e=$('#err');e.textContent=msg||'';e.hidden=!msg}
+function setLoading(on){$('#main').classList.toggle('loading',!!on);$('#main').setAttribute('aria-busy',on?'true':'false')}
+
+// ---------------------------------------------------------------------
+// Estado (vem do banco; nada fica salvo no navegador)
+// ---------------------------------------------------------------------
+let OPC=null;        // dashboard_opcoes(): base atual, config, valores dos filtros
+let RES=null;        // dashboard_resumo(): indicadores agregados pelos filtros
+let CUR_IMP=null;    // id do rascunho que o editor está vendo (null = base publicada)
+let USER=null, IS_ED=false;
+const EMPTY={total:{n:0,valor:0,custo:0,sla_n:0,sla_soma:0,codigos:0},por_tipo:[],por_transportadora:[],sla_transportadora_segmento:[],por_segmento:[],por_filial:[],por_mes:[]};
+
+// Converte um grupo agregado do banco para o formato usado nos gráficos
+function G(o){const n=+o.n||0,v=+o.valor||0,c=+o.custo||0,sn=+o.sla_n||0;
+  return {key:o.key,n,valor:v,custo:c,pc:v?c/v:NaN,slaN:sn,sla:sn?(+o.sla_soma)/sn:null,codigos:+o.codigos||0}}
+
+const FILTERS=[['f_tipo','tipo','Todos','p_tipo_venda'],['f_seg','seg','Todos','p_segmento'],['f_par','par','Todas','p_transportadora'],['f_exp','exp','Todos','p_tipo_expedicao'],['f_eq','eq','Todas','p_equipe'],['f_emp','emp','Todas','p_filial']];
+function params(){const p={p_importacao_id:CUR_IMP,p_data_ini:$('#dIni').value||null,p_data_fim:$('#dFim').value||null};
+  FILTERS.forEach(([id,,,arg])=>p[arg]=$('#'+id).value||null);return p}
+
+function fillSelects(){
+  const o=(OPC&&OPC.opcoes)||{};let changed=false;
+  FILTERS.forEach(([id,k,all])=>{const el=$('#'+id),cur=el.value;const vals=[...(o[k]||[])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    el.innerHTML=`<option value="">${all}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    el.value=vals.includes(cur)?cur:'';if(el.value!==cur)changed=true;});
+  const segs=[...(o.seg||[])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const ss=$('#slaSeg'),cur=ss.value;
+  ss.innerHTML='<option value="">Todos os segmentos</option>'+segs.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  const padrao=String((OPC&&OPC.config&&OPC.config.segmento_padrao_sla)||'').trim().toUpperCase();
+  const rep=padrao?segs.find(s=>s.trim().toUpperCase()===padrao):null;
+  ss.value=segs.includes(cur)?cur:(rep||'');
+  const dmin=OPC&&OPC.data_min||'',dmax=OPC&&OPC.data_max||'';
+  $('#dIni').min=$('#dFim').min=dmin;$('#dIni').max=$('#dFim').max=dmax;
+  const imp=OPC&&OPC.importacao;
+  if(!imp)$('#baseInfo').innerHTML=CONFIG_OK?'Nenhuma base publicada ainda.':'';
+  else{const src=`${imp.nome_arquivo}${imp.aba?' · aba '+imp.aba:''}`;
+    const st=imp.status==='publicada'?` · publicada em ${fmtDateTime(imp.publicada_em)}`:' · RASCUNHO (só editores veem até publicar)';
+    $('#baseInfo').innerHTML=`Base com ${int(OPC.total)} registros<br>${esc(src+st)}`;}
+  $('#stamp').textContent=dmin?`↻ Base com vendas de ${fmtDate(dmin)} a ${fmtDate(dmax)}`:'';
+  if(OPC&&OPC.config&&document.activeElement!==$('#meta'))$('#meta').value=OPC.config.meta_custo_pct;
+  return changed;
+}
+
+// Carrega opções + indicadores (2 chamadas em paralelo)
+async function loadAll(){
+  if(!supabaseClient)return;
+  const my=++reqSeq;setLoading(true);
+  try{
+    const [o,r]=await Promise.all([rpc('dashboard_opcoes',{p_importacao_id:CUR_IMP}),rpc('dashboard_resumo',params())]);
+    OPC=o;RES=r;
+    if(fillSelects()){RES=await rpc('dashboard_resumo',params())} // algum filtro deixou de existir na nova base
+    if(my!==reqSeq)return;
+    showErr('');render();
+  }catch(e){if(my===reqSeq){showErr('Não consegui carregar os dados do painel. '+friendly(e));render()}}
+  finally{if(my===reqSeq)setLoading(false)}
+}
+// Recarrega só os indicadores quando um filtro muda (com debounce)
+let reqSeq=0,debT=null;
+function scheduleResumo(){clearTimeout(debT);debT=setTimeout(loadResumo,250)}
+async function loadResumo(){
+  if(!supabaseClient)return;
+  const my=++reqSeq;setLoading(true);
+  try{const r=await rpc('dashboard_resumo',params());if(my!==reqSeq)return;RES=r;showErr('');render()}
+  catch(e){if(my===reqSeq)showErr('Não consegui atualizar os indicadores. '+friendly(e))}
+  finally{if(my===reqSeq)setLoading(false)}
+}
+
+// ---- tooltip
+const tip=$('#tip');
+document.addEventListener('mousemove',e=>{const t=e.target.closest('[data-tip]');if(!t){tip.hidden=true;return}
+  tip.innerHTML=t.dataset.tip;tip.hidden=false;const w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=e.clientX+14,y=e.clientY+14;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y+h>innerHeight-8)y=e.clientY-h-14;tip.style.left=x+'px';tip.style.top=y+'px'});
+
+function metaV(){const m=parseFloat($('#meta').value);return isFinite(m)?m/100:NaN}
+
+// ---- render (todos os números vêm de RES, calculado no banco)
+function render(){
+  const R=RES||EMPTY,A=G(R.total),meta=metaV();
+  const pars=[...((OPC&&OPC.opcoes&&OPC.opcoes.par)||[])].sort();const pIdx=p=>pars.indexOf(p);
+  const dev=A.pc-meta, ok=A.pc<=meta;
+  const K=[
+    ['Faturamento total',brl.format(A.valor),`${int(A.n)} registros`],
+    ['Custo logístico',brl.format(A.custo),`Frete · média ${brl.format(A.n?A.custo/A.n:0)}/entrega`],
+    ['% custo logístico',pct(A.pc),isFinite(meta)&&A.n?`<span class="pill ${ok?'ok':'no'}">${ok?'✓ Dentro':'▲ Acima'} da meta</span> ${dev>0?'+':''}${(dev*100).toLocaleString('pt-BR',{maximumFractionDigits:2})} p.p.`:''],
+    ['SLA médio',hms(A.sla),`Média de ${int(A.slaN)} entregas válidas`],
+    ['Entregas / vendas',int(A.n),`${int(A.codigos)} códigos de venda`],
+    ['Meta de custo',isFinite(meta)?pct(meta):'–','Meta definida para o painel']];
+  $('#kpis').innerHTML=K.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v" title="${esc(k[1])}">${k[1]}</div><div class="s">${k[2]}</div></div>`).join('');
+
+  // SLA por tipo
+  const gTipo=R.por_tipo.map(G);
+  const gt=gTipo.filter(g=>g.slaN>0).sort((a,b)=>b.sla-a.sla);
+  const mx=Math.max(...gt.map(g=>g.sla),1);
+  $('#chSlaTipo').innerHTML=gt.length?`<div class="hb">`+gt.map(g=>{const hi=g.sla>A.sla;
+    return `<div class="lab">${esc(g.key)}<small>${int(g.slaN)} vendas</small></div><div class="tr" data-tip="<b>${esc(g.key)}</b><br>SLA médio: ${hms(g.sla)}<br>${int(g.slaN)} entregas válidas<br>${hi?'Acima':'Abaixo'} da média geral (${hms(A.sla)})"><div class="bar" style="width:${g.sla/mx*100}%;background:${hi?'var(--orange)':'var(--blue)'}"></div></div><div class="val">${hms(g.sla)}</div>`}).join('')+`</div>`:'<div class="empty">Nenhuma entrega com SLA válido nos filtros atuais.</div>';
+
+  // Donut
+  const gp=R.por_transportadora.map(G).sort((a,b)=>b.n-a.n);
+  if(!gp.length||!A.n)$('#chDonut').innerHTML='<div class="empty">Sem entregas nos filtros atuais.</div>';
+  else{const Rr=70,C=2*Math.PI*Rr;let off=0;const gap=gp.length>1?2:0;
+    const arcs=gp.map(g=>{const len=g.n/A.n*C;const s=`<circle r="${Rr}" cx="100" cy="100" fill="none" stroke="${parColor(g.key,pIdx(g.key))}" stroke-width="34" stroke-dasharray="${Math.max(len-gap,0.01)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)" data-tip="<b>${esc(g.key)}</b><br>${int(g.n)} entregas · ${pct(g.n/A.n)}<br>Custo: ${brl.format(g.custo)}"></circle>`;off+=len;return s}).join('');
+    $('#chDonut').innerHTML=`<svg viewBox="0 0 200 200" role="img" aria-label="Participação por transportadora">${arcs}<text x="100" y="100" text-anchor="middle" style="font:900 30px var(--f-display);fill:var(--ink)">${int(A.n)}</text><text x="100" y="120" text-anchor="middle" style="font-size:11px">entregas</text></svg><div class="legend">`+gp.map(g=>`<span><i style="background:${parColor(g.key,pIdx(g.key))}"></i>${esc(g.key)}<b>${pct(g.n/A.n)}</b></span>`).join('')+`</div>`;}
+
+  // SLA por transportadora (segmento escolhido no próprio card; combinação feita sobre somas do banco)
+  const sg=$('#slaSeg').value;
+  $('#slaSegD').textContent=(sg?`Somente ${sg.trim().toLowerCase()} · `:'Todos os segmentos · ')+'média dos SLAs válidos.';
+  const acc=new Map();R.sla_transportadora_segmento.forEach(x=>{if(sg&&x.seg!==sg)return;const a=acc.get(x.key)||{key:x.key,n:0,valor:0,custo:0,sla_n:0,sla_soma:0};a.sla_n+=+x.sla_n||0;a.sla_soma+=+x.sla_soma||0;acc.set(x.key,a)});
+  const gs=[...acc.values()].map(G).filter(g=>g.slaN>0).sort((a,b)=>a.sla-b.sla);
+  const ms=Math.max(...gs.map(g=>g.sla),1);
+  $('#chSlaPar').innerHTML=gs.length?`<div class="hb">`+gs.map(g=>`<div class="lab">${esc(g.key)}<small>${int(g.slaN)} entregas</small></div><div class="tr" data-tip="<b>${esc(g.key)}</b><br>SLA médio: ${hms(g.sla)}<br>${int(g.slaN)} entregas válidas"><div class="bar" style="width:${g.sla/ms*100}%;background:${parColor(g.key,pIdx(g.key))}"></div></div><div class="val">${hms(g.sla)}</div>`).join('')+`</div>`:'<div class="empty">Sem entregas desse segmento nos filtros atuais.</div>';
+
+  // Custo % por transportadora x meta
+  $('#metaD').innerHTML=`Custo ÷ faturamento. Linha tracejada = meta de ${pct(meta)}.`;
+  const gc=gp.filter(g=>g.valor>0).sort((a,b)=>b.pc-a.pc);
+  const mc=Math.max(...gc.map(g=>g.pc),isFinite(meta)?meta:0)*1.15||1;
+  $('#chCustoPar').innerHTML=gc.length?`<div class="hb">`+gc.map(g=>{const o=g.pc<=meta;return `<div class="lab">${esc(g.key)}<small>${brlK(g.custo)} de custo</small></div><div class="tr" data-tip="<b>${esc(g.key)}</b><br>Custo: ${brl.format(g.custo)}<br>Faturamento: ${brl.format(g.valor)}<br>% custo: ${pct(g.pc)} (${o?'dentro':'acima'} da meta)"><div class="bar" style="width:${g.pc/mc*100}%;background:${parColor(g.key,pIdx(g.key))}"></div>${isFinite(meta)?`<div class="meta-line" style="left:${meta/mc*100}%"></div>`:''}</div><div class="val"><span class="pill ${o?'ok':'no'}" style="padding:0 4px">${o?'✓':'▲'}</span> ${pct(g.pc)}</div>`}).join('')+`</div>`:'<div class="empty">Sem dados nos filtros atuais.</div>';
+
+  // Mês
+  const gm=R.por_mes.map(G).sort((a,b)=>a.key<b.key?-1:1);
+  if(!gm.length)$('#chMes').innerHTML='<div class="empty">Sem dados nos filtros atuais.</div>';
+  else{const W=720,H=280,L=64,B=52,T=18,ph=H-T-B,mv=niceMax(Math.max(...gm.map(g=>g.valor)));
+    const gw=(W-L-10)/gm.length,bw=Math.min(56,gw*0.32);let s='';
+    for(let i=0;i<=4;i++){const v=mv*i/4,y=T+ph-ph*i/4;s+=`<line x1="${L}" x2="${W-6}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L-8}" y="${y+4}" text-anchor="end" style="font-size:11px">${brlK(v).replace('R$ ','')}</text>`}
+    gm.forEach((g,i)=>{const cx=L+gw*i+gw/2;const [yy,mo]=g.key.split('-');const lab=`${MES[+mo-1]}/${yy.slice(2)}`;
+      const hv=Math.max(ph*g.valor/mv,0),hc=Math.max(ph*g.custo/mv,2);
+      s+=`<rect x="${cx-bw-1}" y="${T+ph-hv}" width="${bw}" height="${hv}" rx="4" fill="var(--blue)" data-tip="<b>${MESF[+mo-1]}/${yy}</b><br>Faturamento: ${brl.format(g.valor)}"/>`;
+      s+=`<rect x="${cx+1}" y="${T+ph-hc}" width="${bw}" height="${hc}" rx="4" fill="var(--blue-lt)" data-tip="<b>${MESF[+mo-1]}/${yy}</b><br>Custo: ${brl.format(g.custo)}"/>`;
+      s+=`<text x="${cx-bw/2-1}" y="${T+ph-hv-5}" text-anchor="middle" style="font-size:10.5px;font-weight:700;fill:var(--ink)">${brlK(g.valor).replace('R$ ','')}</text>`;
+      s+=`<text x="${cx+bw/2+1}" y="${T+ph-hc-5}" text-anchor="middle" style="font-size:10.5px;font-weight:700;fill:var(--ink)">${brlK(g.custo).replace('R$ ','')}</text>`;
+      s+=`<text x="${cx}" y="${T+ph+18}" text-anchor="middle" style="font-size:12px;font-weight:700;fill:var(--ink)">${lab}</text><text x="${cx}" y="${T+ph+35}" text-anchor="middle" style="font-size:11px;fill:${g.pc<=meta?'var(--good)':'var(--bad)'};font-weight:700">${g.pc<=meta?'✓':'▲'} ${pct(g.pc)} · ${int(g.n)} ent.</text>`});
+    $('#chMes').innerHTML=`<div class="legend"><span><i style="background:var(--blue)"></i>Faturamento</span><span><i style="background:var(--blue-lt)"></i>Custo logístico</span></div><div class="tw"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:480px;height:auto" role="img" aria-label="Faturamento e custo por mês">${s}</svg></div>`;}
+
+  // Segmento
+  const gsg=R.por_segmento.map(G).filter(g=>g.valor>0).sort((a,b)=>b.valor-a.valor).slice(0,7);
+  const msg=Math.max(...gsg.map(g=>g.pc),isFinite(meta)?meta:0)*1.15||1;
+  $('#chSeg').innerHTML=gsg.length?`<div class="hb" style="grid-template-columns:minmax(90px,130px) minmax(0,1fr) 70px">`+gsg.map(g=>{const o=g.pc<=meta;return `<div class="lab">${esc(g.key.trim())}<small>${int(g.n)} vendas</small></div><div class="tr" data-tip="<b>${esc(g.key)}</b><br>Faturamento: ${brl.format(g.valor)}<br>Custo: ${brl.format(g.custo)}<br>SLA médio: ${hms(g.sla)}"><div class="bar" style="width:${g.pc/msg*100}%;background:var(--blue)"></div>${isFinite(meta)?`<div class="meta-line" style="left:${meta/msg*100}%"></div>`:''}</div><div class="val" style="color:${o?'var(--good)':'var(--bad)'}">${pct(g.pc)}</div>`}).join('')+`</div>`:'<div class="empty">Sem dados.</div>';
+
+  const gEmp=R.por_filial.map(G);
+  table('#tbTipo',gTipo,'Tipo de venda',A,meta);
+  table('#tbEmp',gEmp,'Filial',A,meta);
+  const ne=gEmp.length;$('#moreEmp').hidden=ne<=15;$('#moreEmp').textContent=SHOWALL?'Mostrar só as 15 primeiras':`Mostrar todas as ${ne} filiais`;
+}
+function niceMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));for(const m of [1,1.5,2,2.5,3,4,5,6,8,10])if(m*p>=v)return m*p;return 10*p}
+
+let SHOWALL=false;
+const SORT={'#tbTipo':{k:'valor',d:-1},'#tbEmp':{k:'n',d:-1}};
+function table(sel,groups,label,A,meta){
+  const st=SORT[sel];const g=groups.slice();
+  g.forEach(r=>r.share=A.n?r.n/A.n:NaN);
+  g.sort((a,b)=>{const x=a[st.k],y=b[st.k];if(st.k==='key')return st.d*String(x).localeCompare(String(y),'pt-BR');return st.d*(((x??-1)||0)-((y??-1)||0))});
+  const cols=[['key',label],['n','Qtd vendas'],['valor','Valor faturado'],['custo','Custo frete'],['pc','% frete'],['sla','SLA médio'],['share','% das entregas']];
+  const td=(r,foot)=>`<td>${esc(foot?'Total geral':r.key)}</td><td>${int(r.n)}</td><td>${brl.format(r.valor)}</td><td>${brl.format(r.custo)}</td><td><span class="pill ${r.pc<=meta?'ok':'no'}">${pct(r.pc)}</span></td><td>${hms(r.sla)}</td><td>${pct(foot?1:r.share)}</td>`;
+  $(sel).innerHTML=g.length?`<table><thead><tr>${cols.map(c=>`<th tabindex="0" data-k="${c[0]}" class="${st.k===c[0]?'sorted'+(st.d>0?' asc':''):''}">${c[1]}</th>`).join('')}</tr></thead><tbody>${(sel==='#tbEmp'&&!SHOWALL?g.slice(0,15):g).map(r=>`<tr>${td(r)}</tr>`).join('')}</tbody><tfoot><tr>${td(A,true)}</tr></tfoot></table>`:'<div class="empty">Sem dados nos filtros atuais.</div>';
+  $(sel).querySelectorAll('th').forEach(th=>{const go=()=>{const k=th.dataset.k;if(st.k===k)st.d*=-1;else{st.k=k;st.d=k==='key'?1:-1}render()};th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
+}
+
+// ---- eventos de filtro
+['dIni','dFim',...FILTERS.map(f=>f[0])].forEach(id=>$('#'+id).addEventListener('input',scheduleResumo));
+['meta','slaSeg'].forEach(id=>$('#'+id).addEventListener('input',render)); // só apresentação, sem nova consulta
+$('#clear').onclick=()=>{$('#dIni').value=$('#dFim').value='';FILTERS.forEach(([id])=>$('#'+id).value='');loadResumo()};
+$('#moreEmp').onclick=()=>{SHOWALL=!SHOWALL;render()};
+
+// ---------------------------------------------------------------------
+// Autenticação do editor (Supabase Auth, e-mail + senha)
+// ---------------------------------------------------------------------
+function toast(msg){const t=$('#toast');t.innerHTML=msg||'';t.hidden=!msg}
+function applyAuthUI(){
+  $('#loginOpen').hidden=!!USER||!supabaseClient;$('#logged').hidden=!USER;
+  if(USER){$('#loginForm').hidden=true;$('#whoami').textContent=USER.email||'Conectado';$('#noEd').hidden=IS_ED}
+  document.querySelectorAll('.ed').forEach(el=>el.hidden=!IS_ED);
+  $('#meta').readOnly=!IS_ED;$('#meta').title=IS_ED?'Altere e saia do campo para salvar para todos':'Definida por quem administra o painel';
+  if(IS_ED&&!CUR_IMP){$('#pubBtn').disabled=true}
+}
+let authBusy=null;
+async function refreshAuth(session){
+  USER=session&&session.user||null;IS_ED=false;
+  if(USER){try{IS_ED=!!(await rpc('sou_editor'))}catch(e){IS_ED=false}}
+  if(!IS_ED&&CUR_IMP){CUR_IMP=null;loadAll()} // saiu: volta para a base publicada
+  applyAuthUI();
+}
+$('#loginOpen').onclick=()=>{$('#loginForm').hidden=false;$('#loginOpen').hidden=true;$('#lgEmail').focus()};
+$('#loginCancel').onclick=()=>{$('#loginForm').hidden=true;$('#loginOpen').hidden=false};
+$('#loginForm').onsubmit=async e=>{e.preventDefault();const b=$('#lgBtn');b.disabled=true;b.textContent='Entrando…';
+  try{const {error}=await supabaseClient.auth.signInWithPassword({email:$('#lgEmail').value.trim(),password:$('#lgPass').value});
+    if(error){console.error('Erro de login:',error);
+      toast(/Invalid login/i.test(error.message)?'E-mail ou senha inválidos.':/confirm/i.test(error.message)?'Confirme seu e-mail antes de entrar.':friendly(error));return}
+    $('#lgPass').value='';toast('');
+  }catch(err){console.error(err);toast(friendly(err))}
+  finally{b.disabled=false;b.textContent='Entrar'}};
+$('#logout').onclick=async()=>{const {error}=await supabaseClient.auth.signOut();if(error){console.error(error);toast(friendly(error))}};
+
+// ---------------------------------------------------------------------
+// Importação da planilha → rascunho no Supabase → publicação
+// ---------------------------------------------------------------------
+$('#upBtn').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{const f=e.target.files[0];if(f)readFile(f);e.target.value=''};
+
+let XLSX_P=null;
+function loadXLSX(){if(window.XLSX)return Promise.resolve();if(XLSX_P)return XLSX_P;
+  XLSX_P=new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=ok;s.onerror=()=>{XLSX_P=null;ko(new Error('xlsx'))};document.head.appendChild(s)});
+  return XLSX_P}
+
+const norm=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function serialToISO(n){const d=new Date(Math.round((n-25569)*86400000));return isFinite(d)?d.toISOString().slice(0,10):null}
+function parseDate(v){if(v==null||v==='')return null;if(typeof v==='number')return serialToISO(v);if(v instanceof Date)return v.toISOString().slice(0,10);
+  const s=String(v).trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return `${m[3]}-${p2(m[2])}-${p2(m[1])}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:null}
+function validDate(iso){if(!iso)return null;const d=new Date(iso+'T00:00:00Z');const y=+iso.slice(0,4);return isFinite(d)&&d.toISOString().slice(0,10)===iso&&y>=2000&&y<=2100?iso:null}
+function parseSla(v){if(v==null||v==='')return null;if(typeof v==='number')return v>=0?Math.round(v*86400):null;
+  const m=String(v).trim().match(/^(\d+):(\d{2})(?::(\d{2}))?$/);return m?(+m[1])*3600+(+m[2])*60+(+(m[3]||0)):null}
+function num(v){if(typeof v==='number')return isFinite(v)?v:0;if(v==null||v==='')return 0;const s=String(v).replace(/[R$\s]/g,'');const n=parseFloat(s.includes(',')?s.replace(/\./g,'').replace(',','.'):s);return isFinite(n)?n:0}
+const r2=v=>Math.round((+v||0)*100)/100;
+
+// Converte a base.json antiga (formato publicado pelo painel anterior) em linhas
+function fromLegacyJson(j){const D=j.dic;
+  return j.rows.map(r=>({cod:r[0],exp:D.exp[r[1]],tipo:D.tipo[r[2]],eq:D.eq[r[3]],emp:D.emp[r[4]],seg:D.seg[r[5]],par:D.par[r[6]]||'(sem parceiro)',date:r[7],valor:r[8],custo:r[9],sla:r[10]}))}
+
+async function readFile(file){
+  if(!IS_ED){toast('Entre com uma conta de editor para carregar bases.');return}
+  toast(`Lendo <b>${esc(file.name)}</b>… arquivos grandes podem levar alguns segundos.`);
+  try{
+    let rows,aba;
+    if(/\.json$/i.test(file.name)){
+      const j=JSON.parse(await file.text());
+      if(!j||!j.dic||!Array.isArray(j.rows)){toast('Este JSON não está no formato da base antiga do painel (base.json).');return}
+      rows=fromLegacyJson(j);aba='base.json (formato antigo)';
+    }else{
+      try{await loadXLSX()}catch(e){toast('Não foi possível carregar o leitor de Excel. Verifique a conexão e tente de novo.');return}
+      const buf=await file.arrayBuffer();const isCsv=/\.csv$/i.test(file.name);
+      const wb=XLSX.read(buf,{type:'array',cellDates:false,cellFormula:false,cellHTML:false,cellStyles:false,raw:isCsv});
+      const need={cod:'CODVENDA',exp:'TIPOEXPEDICAO',tipo:'TIPOVENDA',eq:'EQUIPEVENDA',emp:'ABREVIACAOEMPRESA',date:'DATAREFERENCIA',valor:'VALORNOTAFISCAL',seg:'SEGMENTO',sla:'SLADEENTREGA',custo:'CUSTO',par:'PARCEIRO'};
+      let found=null;
+      for(const name of wb.SheetNames){const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:null});
+        for(let h=0;h<Math.min(aoa.length,15);h++){const hdr=(aoa[h]||[]).map(norm);const idx={};for(const [k,n] of Object.entries(need))idx[k]=hdr.indexOf(n);
+          if(idx.cod>=0&&idx.sla>=0&&idx.custo>=0&&idx.valor>=0){found={name,aoa,h,idx};break}}
+        if(found)break}
+      if(!found){toast('Não encontrei a aba da base. Ela precisa ter as colunas Cód. Venda, VALOR NOTA FISCAL, SLA DE ENTREGA e CUSTO.');return}
+      const {aoa,h,idx}=found;const g=(r,k)=>idx[k]>=0?r[idx[k]]:null;const s=(r,k)=>{const v=g(r,k);return v==null?'':String(v).trim()};
+      rows=[];for(let i=h+1;i<aoa.length;i++){const r=aoa[i];if(!r||g(r,'cod')==null||String(g(r,'cod')).trim()==='')continue;
+        rows.push({cod:g(r,'cod'),exp:s(r,'exp'),tipo:s(r,'tipo'),eq:s(r,'eq'),emp:s(r,'emp'),seg:s(r,'seg'),par:s(r,'par')||'(sem parceiro)',date:parseDate(g(r,'date')),valor:num(g(r,'valor')),custo:num(g(r,'custo')),sla:parseSla(g(r,'sla'))})}
+      aba=found.name;
+    }
+    if(!rows.length){toast('A aba foi encontrada, mas não tem linhas de venda.');return}
+    await uploadDraft(rows,file.name,aba);
+  }catch(err){console.error('Erro ao ler o arquivo:',err);toast('Erro ao ler o arquivo. Confira se é a planilha correta.')}
+}
+
+async function uploadDraft(rows,fileName,aba){
+  const pb=$('#pubBtn'),ub=$('#upBtn');pb.disabled=true;ub.disabled=true;
+  let impId=null,badDates=0;
+  const out=rows.map(r=>{const d=validDate(r.date);if(r.date&&!d)badDates++;
+    return {cod_venda:String(r.cod).trim().slice(0,60),tipo_expedicao:r.exp||null,tipo_venda:r.tipo||null,equipe_venda:r.eq||null,filial:r.emp||null,segmento:r.seg||null,transportadora:r.par||null,
+      data_referencia:d,valor_nota_fiscal:r2(r.valor),custo_frete:r2(r.custo),sla_segundos:(r.sla!=null&&isFinite(r.sla)&&r.sla>=0)?Math.round(r.sla):null}});
+  try{
+    toast('Preparando envio para o banco…');
+    // 1) remove rascunhos antigos que ninguém publicou
+    let {error}=await supabaseClient.from('importacoes').delete().eq('status','rascunho');
+    if(error)throw error;
+    // 2) cria o registro da importação (rascunho)
+    const ins=await supabaseClient.from('importacoes').insert({nome_arquivo:String(fileName).slice(0,255),aba:aba?String(aba).slice(0,255):null,total_registros:out.length}).select('id').single();
+    if(ins.error)throw ins.error;impId=ins.data.id;
+    // 3) envia as linhas em lotes (3 em paralelo, 1 nova tentativa por lote)
+    const B=1000,lots=[];for(let i=0;i<out.length;i+=B)lots.push(out.slice(i,i+B));
+    let next=0,done=0;
+    const send=async lot=>{const payload=lot.map(r=>({...r,importacao_id:impId}));
+      let {error}=await supabaseClient.from('entregas').insert(payload);
+      if(error&&!error.code){({error}=await supabaseClient.from('entregas').insert(payload))} // falha de rede: tenta de novo
+      if(error)throw error};
+    const worker=async()=>{while(next<lots.length){const lot=lots[next++];await send(lot);done+=lot.length;
+      toast(`Enviando para o banco… ${int(done)} de ${int(out.length)}<div class="progress"><i style="width:${(done/out.length*100).toFixed(1)}%"></i></div>`)}};
+    await Promise.all([worker(),worker(),worker()]);
+    // 4) mostra o rascunho no painel (só editores veem)
+    CUR_IMP=impId;await loadAll();
+    pb.disabled=false;$('#pubHint').textContent='Clique no botão ② para todos verem esta base.';
+    toast(`✓ Base carregada: ${int(out.length)} registros${aba?` da aba “${esc(aba)}”`:''}. Por enquanto só editores estão vendo. Clique em publicar para atualizar para todos.`+(badDates?`<br>⚠ ${int(badDates)} datas inválidas ficaram em branco.`:''));
+  }catch(e){
+    console.error('Erro ao enviar a base:',e);
+    if(impId){const {error:de}=await supabaseClient.from('importacoes').delete().eq('id',impId);if(de)console.error('Erro ao limpar rascunho:',de)}
+    CUR_IMP=null;toast('Não consegui enviar a base. '+friendly(e));
+  }finally{ub.disabled=false}
+}
+
+async function publishBase(){
+  if(!CUR_IMP)return;
+  const btn=$('#pubBtn');btn.disabled=true;btn.textContent='Publicando…';
+  try{
+    await rpc('publicar_importacao',{p_importacao_id:CUR_IMP});
+    CUR_IMP=null;await loadAll();
+    $('#pubHint').textContent='Base publicada. Para atualizar de novo, carregue outra planilha no botão ①.';
+    toast('✓ Base publicada. Todos que abrirem o painel já veem estes dados.');
+  }catch(e){toast(friendly(e));btn.disabled=false}
+  finally{btn.textContent='② ✔ Publicar esta base para todos'}
+}
+$('#pubBtn').onclick=publishBase;
+
+// Meta de custo: editor altera e o valor é salvo no banco para todos
+$('#meta').addEventListener('change',async()=>{
+  if(!IS_ED)return;
+  const v=parseFloat($('#meta').value);
+  if(!isFinite(v)||v<0||v>100){toast('Informe uma meta entre 0 e 100.');return}
+  const {data,error}=await supabaseClient.from('painel_config').update({meta_custo_pct:r2(v)}).eq('id',1).select('meta_custo_pct');
+  if(error||!data||!data.length){console.error('Erro ao salvar meta:',error);toast('Não consegui salvar a meta. '+friendly(error||{code:'42501'}));return}
+  if(OPC&&OPC.config)OPC.config.meta_custo_pct=data[0].meta_custo_pct;
+  toast(`✓ Meta de ${pct(v/100)} salva para todos.`);
+});
+
+// ---------------------------------------------------------------------
+// Inicialização
+// ---------------------------------------------------------------------
+render();
+if(!window.supabase){showErr('Não foi possível carregar a biblioteca de conexão com o banco. Verifique sua internet e recarregue a página.');applyAuthUI();return}
+if(!CONFIG_OK){showErr('Painel ainda não configurado: preencha SUPABASE_URL e SUPABASE_ANON_KEY no index.html (veja o README.md).');applyAuthUI();return}
+// onAuthStateChange dispara INITIAL_SESSION ao abrir. Chamadas ao Supabase ficam fora do callback (setTimeout) — recomendação da biblioteca.
+supabaseClient.auth.onAuthStateChange((ev,session)=>{if(ev==='INITIAL_SESSION'||ev==='SIGNED_IN'||ev==='SIGNED_OUT'||ev==='USER_UPDATED')setTimeout(()=>refreshAuth(session),0)});
+loadAll();
+})();
+</script>
+
+</body>
+</html>
