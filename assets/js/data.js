@@ -159,7 +159,7 @@ D.setKpi = (id, value, fmt, sub, opts = {}) => {
   let s = sub || '';
   if (opts.delta) s = D.deltaHTML(opts.delta, opts.better) + (s ? ' ' + s : '');
   k.querySelector('.s').innerHTML = s;
-  PJ.charts.spark(k.querySelector('.spark'), opts.spark, opts.sparkColor || 'var(--sky)');
+  PJ.charts.spark(k.querySelector('.spark'), opts.spark, opts.sparkColor || 'var(--c-sky)');
 };
 // delta: {cur, prev, label, mode:'pct'|'pp'}
 D.deltaHTML = (d, better) => {

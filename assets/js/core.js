@@ -99,6 +99,9 @@ const P = {
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5',
   flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
   pause: 'M8 5v14M16 5v14',
+  sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z',
 };
 PJ.icon = (n, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${P[n] || P.info}"/></svg>`;
@@ -268,6 +271,34 @@ PJ.pref = {
   get(k, d) { try { const v = localStorage.getItem('pj.ui.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('pj.ui.' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } },
 };
+
+// ---------- Tema (escuro / claro / automático) ----------
+// Aplicado já no <head> (sem piscar). Salvo no navegador e no perfil do usuário.
+PJ.theme = {
+  OPTS: { escuro: 'Escuro', claro: 'Claro', auto: 'Automático' },
+  get() { const m = PJ.pref.get('theme', 'escuro'); return PJ.theme.OPTS[m] ? m : 'escuro'; },
+  resolve(m) { return m === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : m === 'claro' ? 'light' : 'dark'; },
+  current() { return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'; },
+  apply(m, animate) {
+    const r = document.documentElement, t = PJ.theme.resolve(m);
+    if (animate && !PJ.reduced() && r.dataset.theme !== t) { r.classList.add('theme-anim'); clearTimeout(PJ.theme._t); PJ.theme._t = setTimeout(() => r.classList.remove('theme-anim'), 450); }
+    r.dataset.theme = t;
+    const mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.content = t === 'light' ? '#F2F5FB' : '#050A34';
+    document.dispatchEvent(new CustomEvent('pj:theme', { detail: { mode: m, theme: t } }));
+  },
+  async set(m, save = true) {
+    if (!PJ.theme.OPTS[m]) return;
+    PJ.pref.set('theme', m); PJ.theme.apply(m, true);
+    if (save && PJ.me && PJ.sb) {
+      try { await PJ.rpc('definir_meu_tema', { p_tema: m }); PJ.me.tema = m; }
+      catch (e) { console.warn('Tema salvo só neste navegador (execute o supabase_schema.sql atualizado para salvar no perfil).'); }
+    }
+  },
+  // Ao entrar: o tema salvo no perfil vale em qualquer computador
+  fromProfile(t) { if (t && PJ.theme.OPTS[t] && t !== PJ.theme.get()) { PJ.pref.set('theme', t); PJ.theme.apply(t, true); } },
+};
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (PJ.theme.get() === 'auto') PJ.theme.apply('auto', true); });
+PJ.theme.apply(PJ.theme.get(), false);
 
 // Mostrar/ocultar senha
 document.addEventListener('click', e => {

@@ -23,16 +23,18 @@ App.routes = [
   { id: 'acoes', t: 'Ações PEÇA JÁ', icon: 'rocket', sec: 'Evolução', can: () => PJ.can('acoes.ver') },
   { id: 'usuarios', t: 'Usuários', icon: 'shield', sec: 'Administração', can: () => PJ.can('usuarios.ver') },
   { id: 'permissoes', t: 'Permissões', icon: 'key', sec: 'Administração', can: () => PJ.can('usuarios.ver') },
-  { id: 'configuracoes', t: 'Configurações', icon: 'gear', sec: 'Administração', can: () => PJ.can('config.editar') || PJ.can('base.importar') },
+  { id: 'configuracoes', t: 'Configurações', icon: 'gear', sec: () => (PJ.can('usuarios.ver') || PJ.can('config.editar') || PJ.can('base.importar')) ? 'Administração' : 'Preferências', can: () => !!PJ.me },
 ];
 const DATA_PAGES = new Set(['dashboard', 'vendas', 'entregas', 'sla', 'parceiros', 'faturamento', 'custos', 'indicadores', 'clientes', 'configuracoes']);
 const byId = id => App.routes.find(r => r.id === id);
+const secOf = r => typeof r.sec === 'function' ? r.sec() : r.sec;
 
 // ---------- Menu ----------
 App.buildNav = () => {
   let sec = undefined, h = '';
   App.routes.filter(r => r.can()).forEach(r => {
-    if (r.sec !== sec) { sec = r.sec; if (sec) h += `<div class="nav-sec">${esc(sec)}</div>`; }
+    const rs = secOf(r);
+    if (rs !== sec) { sec = rs; if (sec) h += `<div class="nav-sec">${esc(sec)}</div>`; }
     h += `<a class="nav-a" href="#/${r.id}" data-r="${r.id}" data-label="${esc(r.t)}">${PJ.icon(r.icon)}<span class="t">${esc(r.t)}</span></a>`;
   });
   $('#nav').innerHTML = h;
@@ -67,7 +69,7 @@ App.renderTop = () => {
 };
 $('#userBtn').onclick = () => PJ.Auth.userMenu();
 $('#outBtn').onclick = async () => { if (await PJ.confirm({ title: 'Sair do sistema', text: 'Deseja encerrar sua sessão no PEÇA JÁ?', ok: 'Sair', icon: 'logout' })) PJ.Auth.logout(); };
-$('#cfgBtn').onclick = () => { if (byId('configuracoes').can()) location.hash = '#/configuracoes'; else PJ.Auth.changePass(); };
+$('#cfgBtn').onclick = () => { location.hash = '#/configuracoes'; };
 $('#bellBtn').onclick = () => PJ.Notif.open();
 
 // ---------- Roteador com transição ----------
@@ -84,7 +86,7 @@ App.go = async () => {
   if (cur) { view.classList.add('leaving'); await new Promise(res => setTimeout(res, PJ.reduced() ? 0 : 140)); if (my !== navSeq) return; }
   off && off(); off = null; cur = id; window.scrollTo({ top: 0 });
   App.markNav(id);
-  $('#crumb').innerHTML = (r.sec ? `<span>${esc(r.sec)}</span>${PJ.icon('chevR')}` : '') + `<b>${esc(r.t)}</b>`;
+  $('#crumb').innerHTML = (secOf(r) ? `<span>${esc(secOf(r))}</span>${PJ.icon('chevR')}` : '') + `<b>${esc(r.t)}</b>`;
   document.title = `${r.t} · PEÇA JÁ`;
   view.classList.remove('leaving', 'entering'); void view.offsetWidth; view.classList.add('entering');
   if (!r.can()) { view.innerHTML = denied(r); return; }

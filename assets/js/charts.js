@@ -54,7 +54,7 @@ function donut(el, items, o = {}) {
   const R = 78, C = 2 * Math.PI * R, gap = items.length > 1 ? 2.5 : 0;
   if (!el._dn) {
     el.innerHTML = `<div class="donut-wrap"><svg viewBox="0 0 220 220" role="img" aria-label="${esc(o.aria || 'Gráfico de participação')}">
-      <circle cx="110" cy="110" r="${R}" fill="none" stroke="rgba(115,198,255,.06)" stroke-width="34"/><g class="arcs"></g>
+      <circle cx="110" cy="110" r="${R}" fill="none" stroke="rgb(var(--tint) / .07)" stroke-width="34"/><g class="arcs"></g>
       <text x="110" y="112" text-anchor="middle" class="donut-c1 num">0</text><text x="110" y="134" text-anchor="middle" class="donut-c2"></text></svg><div class="legend"></div></div>`;
     el._dn = { wrap: el.firstElementChild };
   }
@@ -125,7 +125,7 @@ function line(el, pts, o = {}) {
   let lo = o.min0 === false ? Math.min(...vals) : 0, hi = Math.max(...vals);
   if (o.min0 === false) { const pad = (hi - lo) * .2 || hi * .1 || 1; lo = Math.max(0, lo - pad); hi = hi + pad; } else hi = niceMax(hi * 1.08);
   const X = i => L + (pts.length === 1 ? pw / 2 : pw * i / (pts.length - 1)), Y = v => T + ph - (v - lo) / (hi - lo || 1) * ph;
-  const f = o.fmt || (v => PJ.fmt.int(v)), col = o.color || 'var(--sky)';
+  const f = o.fmt || (v => PJ.fmt.int(v)), col = o.color || 'var(--c-sky)';
   let s = `<defs><linearGradient id="lg${el.id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>`;
   for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4, y = Y(v); s += `<line class="grid-l" x1="${L}" x2="${W - 6}" y1="${y}" y2="${y}"/><text x="${L - 8}" y="${y + 4}" text-anchor="end" style="font-size:11px">${esc(f(v))}</text>`; }
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.value).toFixed(1)}`).join('');
@@ -145,7 +145,7 @@ function line(el, pts, o = {}) {
 }
 
 // ---------- Sparkline ----------
-function spark(el, values, color = 'var(--sky)') {
+function spark(el, values, color = 'var(--c-sky)') {
   if (!el) return;
   const v = (values || []).filter(x => x != null && isFinite(x));
   if (v.length < 2) { el.innerHTML = ''; return; }

@@ -105,11 +105,11 @@ A.timeline = (body, list) => {
     const pos = s => (t(s) - lo) / rg * 100, today = pos(PJ.today());
     g = `<div class="gantt">${dated.map((a, i) => { const l = pos(a.ini), w = Math.max(pos(a.fim) - l, 1.2);
       return `<div class="gl" title="${esc(a.titulo)}">${esc(a.titulo)}</div><div class="gt"><div class="today" style="left:${today}%"></div><div class="gb ${a.status}" style="left:${l}%;width:${w}%;--i:${i};--p:${a.progresso / 100}" data-tip="${esc(PJ.tipHTML(a.titulo, [['Status', ST[a.status]], ['Início', F.date(a.data_inicio)], ['Prazo', F.date(a.prazo)], ['Andamento', a.progresso + '%']]))}"><i></i></div></div>`; }).join('')}
-      <div></div><div class="gantt-axis"><span>${F.date(new Date(lo).toISOString())}</span><span style="color:var(--sky)">hoje</span><span>${F.date(new Date(hi).toISOString())}</span></div></div>`;
+      <div></div><div class="gantt-axis"><span>${F.date(new Date(lo).toISOString())}</span><span style="color:var(--c-sky)">hoje</span><span>${F.date(new Date(hi).toISOString())}</span></div></div>`;
   } else g = PJ.emptyHTML('Defina início e prazo nas ações para vê-las na linha do tempo.', 'calendar');
   const ids = new Set(list.map(a => a.id)), names = new Map(A.list.map(a => [a.id, a.titulo]));
   const ev = A.events.filter(e => ids.has(e.acao_id)).slice(0, 25);
-  const evc = { criada: 'var(--sky)', status: 'var(--s4)', progresso: 'var(--blue)', prazo: 'var(--warn)', resultado: 'var(--good)' };
+  const evc = { criada: 'var(--c-sky)', status: 'var(--s4)', progresso: 'var(--blue)', prazo: 'var(--warn-bar)', resultado: 'var(--good)' };
   body.innerHTML = `<div class="grid stagger" style="margin-top:6px"><div class="card c8"><div class="card-h"><div><h3>Linha do tempo das iniciativas</h3><div class="d">Barra = início → prazo. Parte clara = andamento. Linha azul = hoje.</div></div></div><div class="tw">${g}</div></div>
     <div class="card c4"><div class="card-h"><div><h3>Evolução recente</h3><div class="d">Mudanças registradas automaticamente.</div></div></div>
     ${ev.length ? `<div class="tl">${ev.map(e => `<div class="tl-i" style="--c:${evc[e.tipo]}"><b>${esc(names.get(e.acao_id) || 'Ação')}</b><p>${esc(e.descricao)}${e.valor_para ? `: ${e.valor_de ? esc(e.valor_de) + ' → ' : ''}<b>${esc(e.valor_para)}</b>` : ''}</p><small>${F.rel(e.created_at)}</small></div>`).join('')}</div>` : PJ.emptyHTML('Sem eventos ainda.', 'list')}</div></div>`;

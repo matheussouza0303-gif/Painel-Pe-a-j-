@@ -98,6 +98,7 @@ Auth.start = async (session, force) => {
         return Auth.state('clock', 'Acesso aguardando liberação', `Sua conta <b>${esc(session.user.email)}</b> foi criada, mas ainda não foi liberada. Um administrador precisa ativar seu acesso em Gestão de Acessos.`);
       }
       PJ.me = Object.assign(me, { _uid: session.user.id });
+      PJ.theme.fromProfile(me.tema);
       $('#login').hidden = true; $('#stateScreen').hidden = true; hideBoot();
       PJ.App.start();
     } catch (e) {
@@ -118,14 +119,15 @@ Auth.userMenu = () => {
   const old = $('#userMenu'); if (old) { old.remove(); $('#userBtn').setAttribute('aria-expanded', 'false'); return; }
   const me = PJ.me; if (!me) return;
   const dd = PJ.h(`<div class="dropdown" id="userMenu" role="menu"><div class="head"><span class="avatar">${esc(PJ.fmt.initials(me.nome || me.email))}</span><div style="min-width:0"><b>${esc(me.nome || 'Usuário')}</b><small>${esc(me.email)}</small><div style="margin-top:5px"><span class="role ${me.perfil}">${esc(me.perfil_nome || PJ.PERFIS[me.perfil])}</span></div></div></div>
+    <button class="menu-item" type="button" role="menuitem" data-a="tema">${PJ.icon(PJ.theme.current() === 'dark' ? 'sun' : 'moon')}${PJ.theme.current() === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}</button>
     <button class="menu-item" type="button" role="menuitem" data-a="conta">${PJ.icon('key')}Alterar minha senha</button>
-    ${PJ.can('config.editar') || PJ.can('base.importar') ? `<button class="menu-item" type="button" role="menuitem" data-a="cfg">${PJ.icon('gear')}Configurações</button>` : ''}
+    <button class="menu-item" type="button" role="menuitem" data-a="cfg">${PJ.icon('gear')}Configurações</button>
     ${PJ.can('usuarios.ver') ? `<button class="menu-item" type="button" role="menuitem" data-a="usr">${PJ.icon('shield')}Gestão de Acessos</button>` : ''}
     <button class="menu-item danger" type="button" role="menuitem" data-a="out">${PJ.icon('logout')}Sair</button></div>`);
   document.body.appendChild(dd); $('#userBtn').setAttribute('aria-expanded', 'true');
   dd.querySelector('.menu-item').focus();
   dd.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; dd.remove();
-    ({ conta: Auth.changePass, cfg: () => location.hash = '#/configuracoes', usr: () => location.hash = '#/usuarios', out: Auth.logout })[b.dataset.a](); };
+    ({ tema: () => PJ.theme.set(PJ.theme.current() === 'dark' ? 'claro' : 'escuro'), conta: Auth.changePass, cfg: () => location.hash = '#/configuracoes', usr: () => location.hash = '#/usuarios', out: Auth.logout })[b.dataset.a](); };
   setTimeout(() => document.addEventListener('mousedown', function off(e) { if (!dd.contains(e.target) && !e.target.closest('#userBtn')) { dd.remove(); $('#userBtn').setAttribute('aria-expanded', 'false'); } document.removeEventListener('mousedown', off); }), 0);
 };
 Auth.changePass = () => {

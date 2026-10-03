@@ -16,7 +16,7 @@ const tipStd = g => PJ.tipHTML(g.key, [['Entregas', F.int(g.n)], ['Faturamento',
 R.slaTipo = (el, A) => {
   const gt = D.group('por_tipo').filter(g => g.slaN > 0).sort((a, b) => b.sla - a.sla);
   CH().hbars(el, gt.map(g => { const hi = g.sla > A.sla; return { key: g.key, label: g.key, sub: `${F.int(g.slaN)} vendas`, value: g.sla, display: F.hms(g.sla),
-    color: hi ? 'var(--warn)' : 'var(--s1)', tip: PJ.tipHTML(g.key, [['SLA médio', F.hms(g.sla)], ['Entregas válidas', F.int(g.slaN)], [hi ? 'Acima da média' : 'Abaixo da média', F.hms(A.sla)]]) }; }),
+    color: hi ? 'var(--warn-bar)' : 'var(--s1)', tip: PJ.tipHTML(g.key, [['SLA médio', F.hms(g.sla)], ['Entregas válidas', F.int(g.slaN)], [hi ? 'Acima da média' : 'Abaixo da média', F.hms(A.sla)]]) }; }),
     { empty: 'Nenhuma entrega com SLA válido nos filtros atuais.' });
 };
 // Participação por transportadora (quantidade de entregas)
@@ -53,7 +53,7 @@ R.mes = (el, meta) => {
   CH().columns(el, gm.map(g => ({ key: g.key, label: F.mes(g.key), values: [g.valor, g.custo],
     tips: [PJ.tipHTML(F.mesF(g.key), [['Faturamento', F.brl(g.valor)], ['Entregas', F.int(g.n)]]), PJ.tipHTML(F.mesF(g.key), [['Custo logístico', F.brl(g.custo)], ['% custo', F.pct(g.pc)]])],
     under: { text: `${g.pc <= meta ? '✓' : '▲'} ${F.pct(g.pc)}`, sub: `${F.int(g.n)} entregas`, color: g.pc <= meta ? 'var(--good)' : 'var(--bad)' } })),
-    { series: [{ name: 'Faturamento', color: 'var(--s1)' }, { name: 'Custo logístico', color: 'var(--sky)' }], fmtAxis: v => F.brlK(v).replace('R$ ', ''), aria: 'Faturamento e custo por mês' });
+    { series: [{ name: 'Faturamento', color: 'var(--s1)' }, { name: 'Custo logístico', color: 'var(--c-sky)' }], fmtAxis: v => F.brlK(v).replace('R$ ', ''), aria: 'Faturamento e custo por mês' });
 };
 // Custo por segmento (maiores segmentos, % sobre faturamento)
 R.custoSeg = (el, meta) => {
@@ -114,9 +114,9 @@ PJ.pages.dashboard = dataPage({
     <div class="hero-stats stagger" id="heroStats">${[0, 1, 2, 3].map(i => `<div class="hstat" style="--i:${i}"><div class="sk" style="height:62px"></div></div>`).join('')}</div>
   </section>
   <section class="section"><div class="kpis stagger">
-    ${D.kpiHTML('vendas', 'Vendas PEÇA JÁ', 'cart', 'var(--blue)')}${D.kpiHTML('entregas', 'Entregas', 'truck', 'var(--sky)')}
+    ${D.kpiHTML('vendas', 'Vendas PEÇA JÁ', 'cart', 'var(--blue)')}${D.kpiHTML('entregas', 'Entregas', 'truck', 'var(--c-sky)')}
     ${D.kpiHTML('fat', 'Faturamento', 'trend', 'var(--s2)')}${D.kpiHTML('custo', 'Custo logístico', 'wallet', 'var(--s4)')}
-    ${D.kpiHTML('pc', '% custo logístico', 'target', 'var(--warn)')}${D.kpiHTML('sla', 'SLA médio', 'clock', 'var(--s5)')}</div></section>
+    ${D.kpiHTML('pc', '% custo logístico', 'target', 'var(--warn-bar)')}${D.kpiHTML('sla', 'SLA médio', 'clock', 'var(--s5)')}</div></section>
   <section class="section"><div class="section-h"><h2>Performance dos parceiros</h2><a class="linkbtn" href="#/parceiros">Ver todos ${PJ.icon('chevR')}</a></div><div id="dPar"></div></section>
   <section class="section grid stagger">
     ${D.card('dMes', 'Faturamento e custo por mês', 'Mesmo eixo em R$; abaixo de cada mês, o % de custo e as entregas.', { cls: 'c8' })}
@@ -142,7 +142,7 @@ PJ.pages.dashboard = dataPage({
     D.setKpi('entregas', A.n, F.int, '', { delta: D.momDelta('n', F.int), better: 'up', spark: m.map(x => x.n) });
     D.setKpi('fat', A.valor, F.brl, '', { delta: D.momDelta('valor', F.brl), better: 'up', spark: m.map(x => x.valor), sparkColor: 'var(--s2)' });
     D.setKpi('custo', A.custo, F.brl, `média ${F.brl(A.n ? A.custo / A.n : 0)}/entrega`, { spark: m.map(x => x.custo), sparkColor: 'var(--s4)' });
-    D.setKpi('pc', A.pc, v => F.pct(v), isFinite(meta) && A.n ? `meta ${F.pct(meta)}` : '', { delta: D.momDelta('pc', v => F.pct(v), 'pp'), better: 'down', spark: m.map(x => x.pc), sparkColor: 'var(--warn)' });
+    D.setKpi('pc', A.pc, v => F.pct(v), isFinite(meta) && A.n ? `meta ${F.pct(meta)}` : '', { delta: D.momDelta('pc', v => F.pct(v), 'pp'), better: 'down', spark: m.map(x => x.pc), sparkColor: 'var(--warn-bar)' });
     D.setKpi('sla', A.sla, F.hms, `${F.int(A.slaN)} válidas`, { delta: D.momDelta('sla', F.hms), better: 'down', spark: m.map(x => x.sla), sparkColor: 'var(--s5)' });
     R.partners($('#dPar'), A, meta); R.mes($('#dMes'), meta); R.donutPar($('#dDonut'), A); R.slaTipo($('#dSlaTipo'), A); R.custoPar($('#dCustoPar'), meta);
   },
@@ -156,7 +156,7 @@ let showAllEmp = false;
 PJ.pages.vendas = dataPage({
   title: 'Vendas',
   head: { eyebrow: 'Operação', title: 'Vendas', sub: 'Volume, faturamento e custo por tipo de venda, equipe e filial.' },
-  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('vendas', 'Vendas PEÇA JÁ', 'cart')}${D.kpiHTML('fat', 'Faturamento', 'trend', 'var(--s2)')}${D.kpiHTML('ticket', 'Ticket médio por venda', 'target', 'var(--sky)')}${D.kpiHTML('epv', 'Entregas por venda', 'truck', 'var(--s4)')}</div>
+  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('vendas', 'Vendas PEÇA JÁ', 'cart')}${D.kpiHTML('fat', 'Faturamento', 'trend', 'var(--s2)')}${D.kpiHTML('ticket', 'Ticket médio por venda', 'target', 'var(--c-sky)')}${D.kpiHTML('epv', 'Entregas por venda', 'truck', 'var(--s4)')}</div>
     <section class="section grid stagger">${D.card('vTipo', 'Vendas por tipo de venda', 'Códigos de venda distintos.')}${D.card('vEq', 'Vendas por equipe', 'Códigos de venda distintos por equipe.')}
     ${D.card('vTbTipo', 'Custo de frete por tipo de venda', 'Clique no título da coluna para ordenar.', { cls: 'c12' })}
     ${D.card('vTbEmp', 'Custo e SLA por filial', 'Clique no título da coluna para ordenar.', { cls: 'c12', foot: '<button class="btn btn-ghost btn-sm more" type="button" id="vMore" hidden></button>' })}</section>`,
@@ -179,19 +179,19 @@ PJ.pages.vendas = dataPage({
 PJ.pages.entregas = dataPage({
   title: 'Entregas',
   head: { eyebrow: 'Operação', title: 'Entregas', sub: 'Volume de entregas por mês, tipo de expedição, transportadora e filial.' },
-  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('n', 'Entregas', 'truck')}${D.kpiHTML('val', 'Com SLA válido', 'checkc', 'var(--good)')}${D.kpiHTML('rec', 'Recusadas / sem SLA', 'alert', 'var(--warn)')}${D.kpiHTML('dia', 'Média por mês', 'calendar', 'var(--sky)')}</div>
+  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('n', 'Entregas', 'truck')}${D.kpiHTML('val', 'Com SLA válido', 'checkc', 'var(--good)')}${D.kpiHTML('rec', 'Recusadas / sem SLA', 'alert', 'var(--warn-bar)')}${D.kpiHTML('dia', 'Média por mês', 'calendar', 'var(--c-sky)')}</div>
     <section class="section grid stagger">${D.card('eMes', 'Entregas por mês', 'Abaixo de cada mês, o número de vendas.', { cls: 'c8' })}${D.card('eDonut', 'Participação por transportadora', 'Calculada pela quantidade de entregas.', { cls: 'c4' })}
     ${D.card('eExp', 'Entregas por tipo de expedição', '')}${D.card('eEmp', 'Filiais com mais entregas', '10 maiores no filtro.')}</section>`,
   update(A) {
     const m = D.months();
     D.setKpi('n', A.n, F.int, '', { delta: D.momDelta('n', F.int), better: 'up', spark: m.map(x => x.n) });
     D.setKpi('val', A.slaN, F.int, A.n ? F.pct(A.slaN / A.n, 1) + ' do total' : '', { spark: m.map(x => x.slaN), sparkColor: 'var(--good)' });
-    D.setKpi('rec', A.n - A.slaN, F.int, 'RECUSADA ou sem SLA (fora da média)', { spark: m.map(x => x.n - x.slaN), sparkColor: 'var(--warn)' });
+    D.setKpi('rec', A.n - A.slaN, F.int, 'RECUSADA ou sem SLA (fora da média)', { spark: m.map(x => x.n - x.slaN), sparkColor: 'var(--warn-bar)' });
     D.setKpi('dia', m.length ? A.n / m.length : NaN, F.int, m.length ? `${m.length} meses no período` : '');
     CH().columns($('#eMes'), m.map(g => ({ key: g.key, label: F.mes(g.key), values: [g.n], tips: [PJ.tipHTML(F.mesF(g.key), [['Entregas', F.int(g.n)], ['Vendas', F.int(g.codigos)], ['SLA médio', F.hms(g.sla)]])], under: { text: `${F.int(g.codigos)} vendas` } })),
       { series: [{ name: 'Entregas', color: 'var(--s1)' }], fmtAxis: F.int, aria: 'Entregas por mês' });
     R.donutPar($('#eDonut'), A);
-    hbarsBy($('#eExp'), D.group('por_expedicao').sort((a, b) => b.n - a.n), { v: g => g.n, f: F.int }, { sub: g => F.pct(A.n ? g.n / A.n : NaN, 1), color: () => 'var(--sky)' });
+    hbarsBy($('#eExp'), D.group('por_expedicao').sort((a, b) => b.n - a.n), { v: g => g.n, f: F.int }, { sub: g => F.pct(A.n ? g.n / A.n : NaN, 1), color: () => 'var(--c-sky)' });
     hbarsBy($('#eEmp'), D.group('por_filial').sort((a, b) => b.n - a.n).slice(0, 10), { v: g => g.n, f: F.int }, { sub: g => F.hms(g.sla) + ' SLA' });
   },
 });
@@ -199,7 +199,7 @@ PJ.pages.entregas = dataPage({
 PJ.pages.sla = dataPage({
   title: 'SLA',
   head: { eyebrow: 'Operação', title: 'SLA de entrega', sub: 'Média dos registros válidos. "RECUSADA" e vazios não entram na média.' },
-  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('sla', 'SLA médio', 'clock', 'var(--s5)')}${D.kpiHTML('val', 'Entregas válidas', 'checkc', 'var(--good)')}${D.kpiHTML('best', 'Melhor tipo de venda', 'arrowDown', 'var(--good)')}${D.kpiHTML('worst', 'Tipo de venda mais lento', 'arrowUp', 'var(--warn)')}</div>
+  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('sla', 'SLA médio', 'clock', 'var(--s5)')}${D.kpiHTML('val', 'Entregas válidas', 'checkc', 'var(--good)')}${D.kpiHTML('best', 'Melhor tipo de venda', 'arrowDown', 'var(--good)')}${D.kpiHTML('worst', 'Tipo de venda mais lento', 'arrowUp', 'var(--warn-bar)')}</div>
     <section class="section grid stagger">${D.card('sTipo', 'Média de SLA por tipo de venda', 'Laranja = acima da média geral do filtro. Formato hh:mm:ss ou dias + horas.', { cls: 'c7' })}
     ${D.card('sPar', 'SLA médio por transportadora', '', { cls: 'c5', descId: 'sParD', head: '<div id="sSegWrap"></div>' })}
     ${D.card('sMes', 'Evolução do SLA médio', 'Linha tracejada = média do período.', { cls: 'c8' })}${D.card('sSeg', 'SLA por segmento', '', { cls: 'c4' })}
@@ -215,8 +215,8 @@ PJ.pages.sla = dataPage({
     $('#sSegWrap').innerHTML = R.segSelect('sSegSel'); R.bindSeg('sSegSel', $('#sPar'), $('#sParD')); R.slaPar($('#sPar'), $('#sParD'));
     CH().line($('#sMes'), m.filter(x => x.slaN).map(x => ({ key: x.key, label: F.mes(x.key), value: x.sla, tip: PJ.tipHTML(F.mesF(x.key), [['SLA médio', F.hms(x.sla)], ['Entregas válidas', F.int(x.slaN)]]) })),
       { color: 'var(--s5)', fmt: F.hms, ref: isFinite(A.sla) ? { value: A.sla, label: 'média ' + F.hms(A.sla) } : null, min0: false, aria: 'Evolução do SLA' });
-    hbarsBy($('#sSeg'), D.group('por_segmento').filter(g => g.slaN).sort((a, b) => a.sla - b.sla), { v: g => g.sla, f: F.hms }, { sub: g => F.int(g.slaN) + ' válidas', color: g => g.sla > A.sla ? 'var(--warn)' : 'var(--s1)' });
-    hbarsBy($('#sEmp'), D.group('por_filial').filter(g => g.slaN).sort((a, b) => b.sla - a.sla).slice(0, 10), { v: g => g.sla, f: F.hms }, { sub: g => F.int(g.slaN) + ' válidas', color: g => g.sla > A.sla ? 'var(--warn)' : 'var(--s1)' });
+    hbarsBy($('#sSeg'), D.group('por_segmento').filter(g => g.slaN).sort((a, b) => a.sla - b.sla), { v: g => g.sla, f: F.hms }, { sub: g => F.int(g.slaN) + ' válidas', color: g => g.sla > A.sla ? 'var(--warn-bar)' : 'var(--s1)' });
+    hbarsBy($('#sEmp'), D.group('por_filial').filter(g => g.slaN).sort((a, b) => b.sla - a.sla).slice(0, 10), { v: g => g.sla, f: F.hms }, { sub: g => F.int(g.slaN) + ' válidas', color: g => g.sla > A.sla ? 'var(--warn-bar)' : 'var(--s1)' });
   },
 });
 
@@ -241,7 +241,7 @@ PJ.pages.parceiros = dataPage({
 PJ.pages.faturamento = dataPage({
   title: 'Faturamento',
   head: { eyebrow: 'Performance', title: 'Faturamento', sub: 'Valor das notas fiscais atendidas pelo PEÇA JÁ.' },
-  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('fat', 'Faturamento', 'trend', 'var(--s2)')}${D.kpiHTML('ticket', 'Ticket médio por venda', 'target')}${D.kpiHTML('mes', 'Média mensal', 'calendar', 'var(--sky)')}${D.kpiHTML('best', 'Melhor mês', 'sparkle', 'var(--s4)')}</div>
+  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('fat', 'Faturamento', 'trend', 'var(--s2)')}${D.kpiHTML('ticket', 'Ticket médio por venda', 'target')}${D.kpiHTML('mes', 'Média mensal', 'calendar', 'var(--c-sky)')}${D.kpiHTML('best', 'Melhor mês', 'sparkle', 'var(--s4)')}</div>
     <section class="section grid stagger">${D.card('fMes', 'Faturamento e custo por mês', 'Mesmo eixo em R$; o % de custo do mês aparece abaixo.', { cls: 'c12' })}
     ${D.card('fSeg', 'Faturamento por segmento', '')}${D.card('fEmp', 'Filiais com maior faturamento', '10 maiores no filtro.')}</section>`,
   update(A, meta) {
@@ -259,17 +259,17 @@ PJ.pages.faturamento = dataPage({
 PJ.pages.custos = dataPage({
   title: 'Custo logístico',
   head: { eyebrow: 'Performance', title: 'Custo logístico', sub: '% de custo = custo de frete ÷ valor da nota fiscal.' },
-  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('custo', 'Custo logístico', 'wallet', 'var(--s4)')}${D.kpiHTML('pc', '% custo logístico', 'target', 'var(--warn)')}${D.kpiHTML('meta', 'Meta de custo', 'flag', 'var(--bad)')}${D.kpiHTML('med', 'Custo médio por entrega', 'truck', 'var(--sky)')}</div>
+  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('custo', 'Custo logístico', 'wallet', 'var(--s4)')}${D.kpiHTML('pc', '% custo logístico', 'target', 'var(--warn-bar)')}${D.kpiHTML('meta', 'Meta de custo', 'flag', 'var(--bad)')}${D.kpiHTML('med', 'Custo médio por entrega', 'truck', 'var(--c-sky)')}</div>
     <section class="section grid stagger">${D.card('cMes', '% de custo por mês × meta', 'Linha tracejada vermelha = meta definida para o painel.', { cls: 'c7' })}${D.card('cPar', 'Custo logístico por transportadora × meta', 'Custo ÷ faturamento.', { cls: 'c5' })}
     ${D.card('cSeg', 'Custo por segmento', '% de custo sobre faturamento, maiores segmentos.', { cls: 'c5' })}${D.card('cTipo', 'Custo de frete por tipo de venda', 'Clique no título da coluna para ordenar.', { cls: 'c7' })}</section>`,
   update(A, meta) {
     const m = D.months(), ok = A.pc <= meta;
     D.setKpi('custo', A.custo, F.brl, '', { spark: m.map(x => x.custo), sparkColor: 'var(--s4)' });
-    D.setKpi('pc', A.pc, v => F.pct(v), isFinite(meta) && A.n ? `<span class="pill ${ok ? 'ok' : 'no'}">${ok ? 'Dentro' : 'Acima'} da meta</span>` : '', { delta: D.momDelta('pc', v => F.pct(v), 'pp'), better: 'down', spark: m.map(x => x.pc), sparkColor: 'var(--warn)' });
+    D.setKpi('pc', A.pc, v => F.pct(v), isFinite(meta) && A.n ? `<span class="pill ${ok ? 'ok' : 'no'}">${ok ? 'Dentro' : 'Acima'} da meta</span>` : '', { delta: D.momDelta('pc', v => F.pct(v), 'pp'), better: 'down', spark: m.map(x => x.pc), sparkColor: 'var(--warn-bar)' });
     D.setKpi('meta', meta, v => F.pct(v), 'definida em Configurações');
     D.setKpi('med', A.n ? A.custo / A.n : NaN, F.brl, '', { spark: m.map(x => x.n ? x.custo / x.n : null) });
     CH().line($('#cMes'), m.filter(x => x.valor).map(x => ({ key: x.key, label: F.mes(x.key), value: x.pc, tip: PJ.tipHTML(F.mesF(x.key), [['% custo', F.pct(x.pc)], ['Custo', F.brl(x.custo)], ['Faturamento', F.brl(x.valor)]]) })),
-      { color: 'var(--warn)', fmt: v => F.pct(v, 1), ref: isFinite(meta) ? { value: meta, label: 'meta ' + F.pct(meta) } : null, min0: false, aria: '% de custo por mês' });
+      { color: 'var(--warn-bar)', fmt: v => F.pct(v, 1), ref: isFinite(meta) ? { value: meta, label: 'meta ' + F.pct(meta) } : null, min0: false, aria: '% de custo por mês' });
     R.custoPar($('#cPar'), meta); R.custoSeg($('#cSeg'), meta);
     D.table($('#cTipo'), D.withShare(D.group('por_tipo'), A), D.stdCols('Tipo de venda', A, meta), stTipo, { foot: A });
   },
@@ -308,7 +308,7 @@ PJ.pages.conversao = {
 PJ.pages.clientes = dataPage({
   title: 'Clientes PEÇA JÁ',
   head: { eyebrow: 'Clientes', title: 'Clientes PEÇA JÁ', sub: 'Visão por segmento de cliente (a base não identifica o cliente individual).' },
-  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('nseg', 'Segmentos atendidos', 'layers')}${D.kpiHTML('top', 'Maior segmento', 'sparkle', 'var(--s2)')}${D.kpiHTML('topsh', 'Participação do maior', 'pie', 'var(--sky)')}${D.kpiHTML('pc', '% custo logístico', 'target', 'var(--warn)')}</div>
+  html: () => `<div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))">${D.kpiHTML('nseg', 'Segmentos atendidos', 'layers')}${D.kpiHTML('top', 'Maior segmento', 'sparkle', 'var(--s2)')}${D.kpiHTML('topsh', 'Participação do maior', 'pie', 'var(--c-sky)')}${D.kpiHTML('pc', '% custo logístico', 'target', 'var(--warn-bar)')}</div>
     <section class="section grid stagger">${D.card('clFat', 'Faturamento por segmento', '')}${D.card('clCusto', 'Custo por segmento', '% de custo sobre faturamento. Linha tracejada = meta.')}
     ${D.card('clSla', 'SLA por segmento', 'Laranja = acima da média geral.')}${D.card('clDonut', 'Vendas por segmento', 'Participação em códigos de venda.')}
     ${D.card('clTb', 'Segmentos de clientes', 'Clique no título da coluna para ordenar.', { cls: 'c12' })}</section>`,
@@ -320,7 +320,7 @@ PJ.pages.clientes = dataPage({
     D.setKpi('pc', A.pc, v => F.pct(v), isFinite(meta) ? 'meta ' + F.pct(meta) : '');
     hbarsBy($('#clFat'), gs.slice().sort((a, b) => b.valor - a.valor), { v: g => g.valor, f: F.brlK }, { sub: g => F.int(g.codigos) + ' vendas', color: () => 'var(--s2)' });
     R.custoSeg($('#clCusto'), meta);
-    hbarsBy($('#clSla'), gs.filter(g => g.slaN).sort((a, b) => a.sla - b.sla), { v: g => g.sla, f: F.hms }, { sub: g => F.int(g.slaN) + ' válidas', color: g => g.sla > A.sla ? 'var(--warn)' : 'var(--s1)' });
+    hbarsBy($('#clSla'), gs.filter(g => g.slaN).sort((a, b) => a.sla - b.sla), { v: g => g.sla, f: F.hms }, { sub: g => F.int(g.slaN) + ' válidas', color: g => g.sla > A.sla ? 'var(--warn-bar)' : 'var(--s1)' });
     const tot = gs.reduce((s, g) => s + g.codigos, 0), cols = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
     const ord = gs.slice().sort((a, b) => a.key.localeCompare(b.key, 'pt-BR')), main = ord.slice().sort((a, b) => b.codigos - a.codigos);
     const head = main.slice(0, 5), rest = main.slice(5);

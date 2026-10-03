@@ -20,7 +20,7 @@ PJ.pages.usuarios = {
     const can = PJ.can('usuarios.gerenciar');
     view.innerHTML = D.pageHead({ eyebrow: 'Administração', title: 'Gestão de Acessos', sub: 'Usuários, perfis e liberação de acesso ao PEÇA JÁ.', filters: false,
       extra: can ? `<button class="btn btn-primary" type="button" id="uNew">${PJ.icon('plus')}Novo usuário</button>` : '' }) + `
-      <div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))" id="uStats">${['Usuários', 'Ativos', 'Pendentes', 'Bloqueados'].map((l, i) => D.kpiHTML('u' + i, l, ['users', 'checkc', 'clock', 'lock'][i], ['var(--blue)', 'var(--good)', 'var(--warn)', 'var(--bad)'][i])).join('')}</div>
+      <div class="kpis stagger" style="grid-template-columns:repeat(4,minmax(0,1fr))" id="uStats">${['Usuários', 'Ativos', 'Pendentes', 'Bloqueados'].map((l, i) => D.kpiHTML('u' + i, l, ['users', 'checkc', 'clock', 'lock'][i], ['var(--blue)', 'var(--good)', 'var(--warn-bar)', 'var(--bad)'][i])).join('')}</div>
       <section class="section"><div class="card"><div class="card-h"><div><h3>Usuários do sistema</h3><div class="d">${can ? 'Clique nos ícones para editar, alterar perfil, ativar, bloquear ou excluir.' : 'Somente leitura para o seu perfil.'}</div></div>
         <div class="fbar"><input class="input" id="uQ" placeholder="Buscar nome ou e-mail" style="width:220px;padding:8px 12px" aria-label="Buscar usuário">
         <select class="select" id="uP" style="width:auto;padding:8px 34px 8px 12px" aria-label="Perfil"><option value="">Todos os perfis</option>${Object.entries(PJ.PERFIS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
@@ -144,18 +144,33 @@ PJ.pages.permissoes = {
 PJ.pages.configuracoes = {
   title: 'Configurações',
   mount(view) {
-    const cfgOk = PJ.can('config.editar'), baseOk = PJ.can('base.importar');
-    view.innerHTML = D.pageHead({ eyebrow: 'Administração', title: 'Configurações', sub: 'Parâmetros do painel e atualização da base de dados.', filters: false }) + `<div class="grid stagger">
-      <div class="card c5 lift"><div class="card-h"><div><h3>Parâmetros do painel</h3><div class="d">Valem para todos os usuários.</div></div>${cfgOk ? '' : '<span class="pill neutral">' + PJ.icon('lock') + 'Somente leitura</span>'}</div>
+    const cfgOk = PJ.can('config.editar'), baseOk = PJ.can('base.importar'), seeCfg = cfgOk || PJ.can('dados.ver'), me = PJ.me;
+    const tile = (k, cls, desc) => `<button type="button" class="theme-opt" role="radio" data-theme-opt="${k}" aria-checked="false"><span class="tprev ${cls}">${cls === 'auto' ? '' : '<span class="sb"></span><span class="ct"><i></i><i></i><i></i></span>'}</span><span class="chk">${PJ.icon('check')}</span><span>${PJ.theme.OPTS[k]}<small>${desc}</small></span></button>`;
+    view.innerHTML = D.pageHead({ eyebrow: 'Configurações', title: 'Configurações', sub: 'Preferências pessoais e parâmetros do sistema.', filters: false }) + `
+      <div class="section-h"><h2>Preferências pessoais</h2></div>
+      <div class="grid stagger">
+      <div class="card c7 lift"><div class="card-h"><div><h3>Aparência</h3><div class="d">Escolha como o PEÇA JÁ aparece para você. Fica salvo no seu perfil e vale em qualquer computador.</div></div></div>
+        <div class="theme-opts" role="radiogroup" aria-label="Tema da interface">${tile('escuro', 'dark', 'Azul-marinho, ideal para monitoramento')}${tile('claro', 'light', 'Fundo claro, ideal para leitura e impressão')}${tile('auto', 'auto', 'Segue o tema do seu sistema')}</div></div>
+      <div class="card c5 lift"><div class="card-h"><div><h3>Minha conta</h3><div class="d">Seus dados de acesso.</div></div></div>
+        <div class="kv"><span>Nome</span><b>${esc(me.nome || '–')}</b><span>E-mail</span><b style="word-break:break-all">${esc(me.email)}</b><span>Perfil</span><b><span class="role ${me.perfil}">${esc(me.perfil_nome || PJ.PERFIS[me.perfil])}</span></b></div>
+        <button class="btn btn-ghost" type="button" id="cfPass" style="align-self:flex-start">${PJ.icon('key')}Alterar minha senha</button></div>
+      </div>
+      ${seeCfg || baseOk ? '<div class="section-h section"><h2>Sistema</h2></div>' : ''}
+      <div class="grid stagger">
+      ${seeCfg ? `<div class="card c5 lift"><div class="card-h"><div><h3>Parâmetros do painel</h3><div class="d">Valem para todos os usuários.</div></div>${cfgOk ? '' : '<span class="pill neutral">' + PJ.icon('lock') + 'Somente leitura</span>'}</div>
         <form id="cfgF" class="grid-form" novalidate><div class="field full"><label for="cfMeta">Meta de custo logístico (%)</label><input class="input num" type="number" id="cfMeta" step="0.01" min="0" max="100" ${cfgOk ? '' : 'disabled'}><span class="help">% de custo = custo de frete ÷ valor da nota fiscal.</span></div>
         <div class="field full"><label for="cfSeg">Segmento padrão no gráfico de SLA por transportadora</label><select class="select" id="cfSeg" ${cfgOk ? '' : 'disabled'}></select></div>
-        ${cfgOk ? `<div class="full"><button class="btn btn-primary" type="submit" id="cfBtn">${PJ.icon('check')}Salvar parâmetros</button></div>` : ''}<div class="full" id="cfInfo"></div></form></div>
+        ${cfgOk ? `<div class="full"><button class="btn btn-primary" type="submit" id="cfBtn">${PJ.icon('check')}Salvar parâmetros</button></div>` : ''}<div class="full" id="cfInfo"></div></form></div>` : ''}
       ${baseOk ? `<div class="card c7 lift"><div class="card-h"><div><h3>Bases de dados</h3><div class="d">① Carregue a planilha (vira rascunho) → confira → ② publique para todos.</div></div></div>
         <div class="kv" id="bInfo"></div>
         <div class="dz" id="bDz" tabindex="0" role="button" aria-label="Carregar planilha">${PJ.icon('upload')}<div style="font-weight:600;margin-top:6px">① Carregar base Excel</div><div class="help">Arraste o arquivo aqui ou clique · .xlsx, .xlsm, .xls, .csv ou base.json antiga</div></div>
         <input type="file" id="bFile" accept=".xlsx,.xlsm,.xls,.csv,.json" hidden>
         <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-primary" type="button" id="bPub" disabled>${PJ.icon('check')}② Publicar esta base para todos</button><a class="btn btn-ghost" href="#/dashboard" id="bSee" hidden>${PJ.icon('eye')}Ver rascunho no dashboard</a></div>
         <div class="help" id="bHint">Carregue uma planilha no passo ① para liberar a publicação.</div></div>` : ''}</div>`;
+    const marks = () => view.querySelectorAll('[data-theme-opt]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.themeOpt === PJ.theme.get())));
+    view.querySelectorAll('[data-theme-opt]').forEach(b => b.onclick = async () => { await PJ.theme.set(b.dataset.themeOpt); marks(); PJ.toast(`Aparência: modo ${PJ.theme.OPTS[b.dataset.themeOpt].toLowerCase()}.`, 'ok', { ms: 2200 }); });
+    marks(); document.addEventListener('pj:theme', marks);
+    $('#cfPass').onclick = () => PJ.Auth.changePass();
     if (cfgOk) $('#cfgF').onsubmit = async e => { e.preventDefault(); const btn = $('#cfBtn'), v = parseFloat($('#cfMeta').value);
       if (!isFinite(v) || v < 0 || v > 100) { $('#cfMeta').classList.add('err'); return PJ.toast('Informe uma meta entre 0 e 100.', 'err'); }
       $('#cfMeta').classList.remove('err'); PJ.btnBusy(btn, true, 'Salvando…');
@@ -171,7 +186,7 @@ PJ.pages.configuracoes = {
       fi.onchange = e => { const f = e.target.files[0]; if (f) PJ.Bases.readFile(f); e.target.value = ''; };
       $('#bPub').onclick = () => PJ.Bases.publish($('#bPub'));
     }
-    if (!D.loaded) D.loadAll();
+    if (!D.loaded && (seeCfg || baseOk)) D.loadAll();
   },
   update() {
     const o = D.OPC; if (!o) return;
