@@ -7,18 +7,30 @@
 <!-- Aplica o tema salvo (escuro / claro / automático) antes de desenhar a página, sem piscar -->
 <script>try{var m=JSON.parse(localStorage.getItem('pj.ui.theme')||'"escuro"'),t=m==='auto'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):(m==='claro'?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}</script>
 <title>PEÇA JÁ · Centro de Controle</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230A64FF'/%3E%3Cpath d='M18 4 8 18h7l-1 10 10-14h-7z' fill='white'/%3E%3C/svg%3E">
+<meta name="description" content="Centro de Controle do PEÇA JÁ — custo logístico, SLA, parceiros e ações de evolução.">
+<!-- PWA: app instalável -->
+<link rel="manifest" href="manifest.json?v=3.0.1">
+<meta name="application-name" content="PEÇA JÁ">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PEÇA JÁ">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap">
-<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/app.css?v=3.0.1">
 <!-- Cliente oficial do Supabase (v2) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <!-- Tela de carregamento inicial -->
-<div class="boot" id="boot" aria-hidden="true"><div class="pj-mark"><div class="bolt"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div><div><b>PEÇA <span>JÁ</span></b><small>Centro de Controle</small></div></div></div>
+<div class="boot" id="boot" aria-hidden="true"><div class="boot-in"><div class="pj-mark"><div class="bolt"><svg viewBox="0 0 64 64"><g stroke="#73C6FF" stroke-width="5" stroke-linecap="round"><path d="M9 27h9"/><path d="M9 38h9"/></g><path d="M38 13l17 9-17 9-17-9z" fill="#fff"/><path d="M21 22l17 9v21l-17-9z" fill="#D6E7FF"/><path d="M55 22l-17 9v21l17-9z" fill="#A9CBFF"/></svg></div><div><b>PEÇA <span>JÁ</span></b><small>Centro de Controle</small></div></div><div class="boot-bar"><i></i></div></div></div>
 
 <!-- ============================ LOGIN ============================ -->
 <section class="login" id="login" hidden>
@@ -85,6 +97,7 @@
         <button class="btn btn-primary btn-block" type="submit" id="rsBtn">Salvar nova senha</button>
       </form>
     </div>
+    <button class="btn btn-ghost btn-block install-login" type="button" data-install hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg>Instalar o app PEÇA JÁ</button>
     <div class="login-foot">AUTOGLASS · PEÇA JÁ · Logística em movimento</div>
   </div>
 </section>
@@ -106,6 +119,7 @@
     <a class="brand" href="#/dashboard" id="topBrand" aria-label="PEÇA JÁ — início"></a>
     <div class="crumb" id="crumb"></div>
     <div class="grow"></div>
+    <button class="btn btn-ghost btn-sm install-btn" id="installBtn" type="button" data-install hidden aria-label="Instalar o app PEÇA JÁ"></button>
     <button class="icon-btn" id="bellBtn" type="button" aria-label="Notificações"></button>
     <button class="icon-btn" id="cfgBtn" type="button" aria-label="Configurações"></button>
     <button class="user-chip" id="userBtn" type="button" aria-haspopup="menu" aria-expanded="false"></button>
@@ -122,15 +136,18 @@
 <div id="tip" role="tooltip"></div>
 <div class="nav-tip" id="navTip" aria-hidden="true"></div>
 
-<script src="assets/js/config.js"></script>
-<script src="assets/js/core.js"></script>
-<script src="assets/js/charts.js"></script>
-<script src="assets/js/data.js"></script>
-<script src="assets/js/pages-dados.js"></script>
-<script src="assets/js/acoes.js"></script>
-<script src="assets/js/admin.js"></script>
-<script src="assets/js/notificacoes.js"></script>
-<script src="assets/js/auth.js"></script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/config.js?v=3.0.1"></script>
+<script src="assets/js/core.js?v=3.0.1"></script>
+<script src="assets/js/charts.js?v=3.0.1"></script>
+<script src="assets/js/data.js?v=3.0.1"></script>
+<script src="assets/js/pages-dados.js?v=3.0.1"></script>
+<script src="assets/js/acoes.js?v=3.0.1"></script>
+<script src="assets/js/pdf.js?v=3.0.1"></script>
+<script src="assets/js/relatorio.js?v=3.0.1"></script>
+<script src="assets/js/admin.js?v=3.0.1"></script>
+<script src="assets/js/notificacoes.js?v=3.0.1"></script>
+<script src="assets/js/pwa.js?v=3.0.1"></script>
+<script src="assets/js/auth.js?v=3.0.1"></script>
+<script src="assets/js/app.js?v=3.0.1"></script>
 </body>
 </html>

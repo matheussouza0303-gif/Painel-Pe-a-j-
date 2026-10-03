@@ -122,12 +122,14 @@ Auth.userMenu = () => {
     <button class="menu-item" type="button" role="menuitem" data-a="tema">${PJ.icon(PJ.theme.current() === 'dark' ? 'sun' : 'moon')}${PJ.theme.current() === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}</button>
     <button class="menu-item" type="button" role="menuitem" data-a="conta">${PJ.icon('key')}Alterar minha senha</button>
     <button class="menu-item" type="button" role="menuitem" data-a="cfg">${PJ.icon('gear')}Configurações</button>
+    ${PJ.PWA && PJ.PWA.available() ? `<button class="menu-item" type="button" role="menuitem" data-a="inst">${PJ.icon('download')}Instalar o app no aparelho</button>` : ''}
     ${PJ.can('usuarios.ver') ? `<button class="menu-item" type="button" role="menuitem" data-a="usr">${PJ.icon('shield')}Gestão de Acessos</button>` : ''}
-    <button class="menu-item danger" type="button" role="menuitem" data-a="out">${PJ.icon('logout')}Sair</button></div>`);
+    <button class="menu-item danger" type="button" role="menuitem" data-a="out">${PJ.icon('logout')}Sair</button>
+    <div style="padding:8px 10px 2px;font-size:11px;color:var(--muted);border-top:1px solid var(--line);margin-top:6px">PEÇA JÁ · versão ${esc(PJ.VERSION)}</div></div>`);
   document.body.appendChild(dd); $('#userBtn').setAttribute('aria-expanded', 'true');
   dd.querySelector('.menu-item').focus();
   dd.onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; dd.remove();
-    ({ tema: () => PJ.theme.set(PJ.theme.current() === 'dark' ? 'claro' : 'escuro'), conta: Auth.changePass, cfg: () => location.hash = '#/configuracoes', usr: () => location.hash = '#/usuarios', out: Auth.logout })[b.dataset.a](); };
+    ({ inst: () => PJ.PWA.install(), tema: () => PJ.theme.set(PJ.theme.current() === 'dark' ? 'claro' : 'escuro'), conta: Auth.changePass, cfg: () => location.hash = '#/configuracoes', usr: () => location.hash = '#/usuarios', out: Auth.logout })[b.dataset.a](); };
   setTimeout(() => document.addEventListener('mousedown', function off(e) { if (!dd.contains(e.target) && !e.target.closest('#userBtn')) { dd.remove(); $('#userBtn').setAttribute('aria-expanded', 'false'); } document.removeEventListener('mousedown', off); }), 0);
 };
 Auth.changePass = () => {

@@ -47,7 +47,8 @@ PJ.pages.acoes = {
   title: 'Ações PEÇA JÁ',
   async mount(view) {
     view.innerHTML = PJ.D.pageHead({ eyebrow: 'Evolução', title: 'Ações PEÇA JÁ', sub: 'Centro de Evolução: iniciativas em curso para melhorar o PEÇA JÁ.', filters: false,
-      extra: PJ.can('acoes.editar') ? `<button class="btn btn-primary" type="button" id="aNew">${PJ.icon('plus')}Nova ação</button>` : '' }) + `
+      extra: (PJ.can('acoes.relatorio') ? `<button class="btn btn-ghost" type="button" id="aRep">${PJ.icon('fileText')}Gerar Relatório</button>` : '') +
+        (PJ.can('acoes.editar') ? `<button class="btn btn-primary" type="button" id="aNew">${PJ.icon('plus')}Nova ação</button>` : '') }) + `
       <section class="hero evo-hero"><svg class="routes" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true"><path d="M-10 230 C 200 220, 300 120, 500 140 S 800 60, 1010 40"/></svg>
         <div><div class="eyebrow">Centro de Evolução do PEÇA JÁ</div><h1>Cada ação, <span>um passo à frente.</span></h1><p id="aSub">Carregando iniciativas…</p></div>
         <div class="hero-stats stagger" id="aStats">${[0, 1, 2, 3].map(i => `<div class="hstat" style="--i:${i}"><div class="sk" style="height:62px"></div></div>`).join('')}</div></section>
@@ -58,6 +59,7 @@ PJ.pages.acoes = {
           <div class="seg-tabs" id="aMode"><button type="button" data-m="cards">${PJ.icon('grid', '')} Cards</button><button type="button" data-m="timeline">Timeline</button></div></div></div>
         <div id="aBody"><div class="sk" style="height:240px"></div></div></section>`;
     const nb = $('#aNew'); if (nb) nb.onclick = () => A.edit(null);
+    const rb = $('#aRep'); if (rb) rb.onclick = () => PJ.Relatorio.open();
     view.querySelectorAll('#aTabs [data-t]').forEach(b => b.onclick = () => { A.tab = b.dataset.t; A.render(); });
     view.querySelectorAll('#aMode [data-m]').forEach(b => b.onclick = () => { A.mode = b.dataset.m; A.render(); });
     $('#aPri').value = A.pri; $('#aPri').onchange = e => { A.pri = e.target.value; A.render(); };

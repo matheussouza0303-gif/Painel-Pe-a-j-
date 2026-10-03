@@ -58,7 +58,7 @@ U.render = () => {
     { k: 'status', t: 'Status', l: true, f: stPill },
     { k: '_ua', t: 'Último acesso', f: u => u.ultimo_acesso ? `<span data-tip="${esc(F.dateTime(u.ultimo_acesso))}">${F.rel(u.ultimo_acesso)}</span>` : '<span class="muted">nunca</span>' },
     { k: 'created_at', t: 'Criado em', f: u => F.date(u.created_at) },
-    { k: 'id', t: 'Ações', f: u => { const a = U.allowed(u); return `<span class="row-acts" data-id="${u.id}">${ib('edit', 'edit', 'Editar', !a.edit)}${ib('perfil', 'key', 'Alterar perfil', !a.perfil)}${u.status === 'ativo' ? ib('block', 'lock', 'Bloquear', !a.status) : ib('activate', 'unlock', 'Ativar / liberar acesso', !a.status)}${ib('del', 'trash', 'Excluir', !a.del, 'danger')}</span>`; } },
+    { k: 'id', t: 'Ações', sort: false, cls: 'acts-cell', f: u => { const a = U.allowed(u); return `<span class="row-acts" data-id="${u.id}">${ib('edit', 'edit', 'Editar', !a.edit)}${ib('perfil', 'key', 'Alterar perfil', !a.perfil)}${u.status === 'ativo' ? ib('block', 'lock', 'Bloquear', !a.status) : ib('activate', 'unlock', 'Ativar / liberar acesso', !a.status)}${ib('del', 'trash', 'Excluir', !a.del, 'danger')}</span>`; } },
   ], U.st);
   el.querySelectorAll('.row-acts').forEach(box => box.onclick = e => { const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
     const u = U.list.find(x => x.id === box.dataset.id); ({ edit: U.edit, perfil: U.perfil_, block: x => U.status_(x, 'bloqueado'), activate: x => U.status_(x, 'ativo'), del: U.del })[b.dataset.act](u); });
@@ -152,7 +152,7 @@ PJ.pages.configuracoes = {
       <div class="card c7 lift"><div class="card-h"><div><h3>Aparência</h3><div class="d">Escolha como o PEÇA JÁ aparece para você. Fica salvo no seu perfil e vale em qualquer computador.</div></div></div>
         <div class="theme-opts" role="radiogroup" aria-label="Tema da interface">${tile('escuro', 'dark', 'Azul-marinho, ideal para monitoramento')}${tile('claro', 'light', 'Fundo claro, ideal para leitura e impressão')}${tile('auto', 'auto', 'Segue o tema do seu sistema')}</div></div>
       <div class="card c5 lift"><div class="card-h"><div><h3>Minha conta</h3><div class="d">Seus dados de acesso.</div></div></div>
-        <div class="kv"><span>Nome</span><b>${esc(me.nome || '–')}</b><span>E-mail</span><b style="word-break:break-all">${esc(me.email)}</b><span>Perfil</span><b><span class="role ${me.perfil}">${esc(me.perfil_nome || PJ.PERFIS[me.perfil])}</span></b></div>
+        <div class="kv"><span>Nome</span><b>${esc(me.nome || '–')}</b><span>E-mail</span><b style="word-break:break-all">${esc(me.email)}</b><span>Perfil</span><b><span class="role ${me.perfil}">${esc(me.perfil_nome || PJ.PERFIS[me.perfil])}</span></b><span>Versão do app</span><b>${esc(PJ.VERSION)}</b></div>
         <button class="btn btn-ghost" type="button" id="cfPass" style="align-self:flex-start">${PJ.icon('key')}Alterar minha senha</button></div>
       </div>
       ${seeCfg || baseOk ? '<div class="section-h section"><h2>Sistema</h2></div>' : ''}

@@ -4,6 +4,9 @@
 (function () {
 'use strict';
 const PJ = window.PJ = window.PJ || {};
+// Versão do app (mostrada em Configurações e no menu do usuário — ajuda a confirmar que a atualização chegou)
+PJ.VERSION = '3.0.1';
+console.info('PEÇA JÁ versão ' + PJ.VERSION);
 
 // ---------- DOM ----------
 PJ.$ = (s, r = document) => r.querySelector(s);
@@ -102,6 +105,10 @@ const P = {
   sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
+  download: 'M12 4v11M7 10l5 5 5-5M4 20h16',
+  share: 'M12 15V3M8 7l4-4 4 4M5 11v9h14v-9',
+  fileText: 'M14 3H6v18h12V7zM14 3v4h4M9 12h6M9 16h6M9 8h2',
+  phone: 'M7 2h10v20H7zM11 18h2',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z',
 };
 PJ.icon = (n, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${P[n] || P.info}"/></svg>`;
@@ -110,8 +117,11 @@ PJ.icon = (n, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" 
 PJ.brandHTML = (compact) => {
   const L = (window.PJ_CONFIG || {}).LOGO_URL;
   const ag = L ? `<span class="ag"><img src="${PJ.esc(L)}" alt="Autoglass"></span>` : `<span class="ag">AUTOGLASS</span>`;
-  return `${ag}<span class="sep"></span><span class="pj-mark"><span class="bolt">${PJ.icon('bolt')}</span><span><b>PEÇA <span>JÁ</span></b>${compact ? '' : '<small>Centro de Controle</small>'}</span></span>`;
+  return `${ag}<span class="sep"></span><span class="pj-mark"><span class="bolt">${PJ.LOGO_MARK}</span><span><b>PEÇA <span>JÁ</span></b>${compact ? '' : '<small>Centro de Controle</small>'}</span></span>`;
 };
+// Logo PEÇA JÁ (encomenda + linhas de velocidade) — mesmo desenho do ícone do app (assets/icons)
+PJ.LOGO_MARK = '<svg viewBox="0 0 64 64" aria-hidden="true"><g stroke="#73C6FF" stroke-width="5" stroke-linecap="round"><path d="M9 27h9"/><path d="M9 38h9"/></g><path d="M38 13l17 9-17 9-17-9z" fill="#fff"/><path d="M21 22l17 9v21l-17-9z" fill="#D6E7FF"/><path d="M55 22l-17 9v21l17-9z" fill="#A9CBFF"/></svg>';
+PJ.logoHTML = (size = 40) => `<span class="pj-logo" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * .26)}px">${PJ.LOGO_MARK}</span>`;
 
 // ---------- Cliente Supabase ----------
 const C = window.PJ_CONFIG || {};

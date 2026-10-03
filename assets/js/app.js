@@ -62,6 +62,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') App.closeDra
 App.renderTop = () => {
   $('#topBrand').innerHTML = PJ.brandHTML(true);
   $('#menuBtn').innerHTML = PJ.icon('menu'); $('#cfgBtn').innerHTML = PJ.icon('gear'); $('#outBtn').innerHTML = PJ.icon('logout');
+  $('#installBtn').innerHTML = PJ.icon('download') + '<span class="t">Instalar app</span>'; PJ.PWA && PJ.PWA.refreshUI();
   const me = PJ.me;
   $('#userBtn').innerHTML = `<span class="avatar">${esc(PJ.fmt.initials(me.nome || me.email))}</span><span class="who"><b>${esc(me.nome || me.email)}</b><span class="role ${me.perfil}">${esc(me.perfil_nome || PJ.PERFIS[me.perfil])}</span></span>`;
   $('#userBtn').setAttribute('aria-label', `Perfil: ${me.nome || me.email}`);
@@ -106,13 +107,14 @@ App.start = () => {
   D.CUR_IMP = null; D.loaded = false; D.loadingStarted = false;
   if (PJ.can('dados.ver')) { D.loadingStarted = true; D.loadAll(); }
   PJ.Notif.start();
+  setTimeout(() => PJ.PWA && PJ.PWA.maybeBanner(), 2500);
   if (/access_token|type=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search + '#/' + App.home());
   cur = null; App.go();
 };
 App.stop = () => {
   $('#app').hidden = true; off && off(); off = null; cur = null; PJ.Notif.stop();
   Object.assign(D, { OPC: null, RES: null, CUR_IMP: null, loaded: false, loadingStarted: false, error: null, slaSeg: null });
-  Object.keys(D.F).forEach(k => D.F[k] = ''); $('#view').innerHTML = ''; const m = $('#userMenu'); m && m.remove();
+  Object.keys(D.F).forEach(k => D.F[k] = ''); $('#view').innerHTML = ''; const m = $('#userMenu'); m && m.remove(); const ib = $('#installBanner'); ib && ib.remove();
 };
 
 PJ.Auth.init();

@@ -185,11 +185,16 @@ D.table = function (el, rows, cols, st, opts = {}) {
   const g = rows.slice().sort((a, b) => { const x = a[st.k], y = b[st.k]; if (typeof x === 'string' || typeof y === 'string') return st.d * String(x).localeCompare(String(y), 'pt-BR');
     return st.d * (((isFinite(x) ? x : -1) || 0) - ((isFinite(y) ? y : -1) || 0)); });
   const shown = opts.limit && !opts.all ? g.slice(0, opts.limit) : g;
-  el.innerHTML = `<div class="tw"><table><thead><tr>${cols.map(c => `<th class="sortable ${st.k === c.k ? 'sorted' + (st.d > 0 ? ' asc' : '') : ''} ${c.l ? 'l' : ''}" tabindex="0" data-k="${c.k}" scope="col">${esc(c.t)}</th>`).join('')}</tr></thead>
-    <tbody>${shown.map((r, i) => `<tr class="enter" style="--i:${Math.min(i, 20)}">${cols.map(c => `<td class="${c.l ? 'l' : ''}">${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody>
-    ${opts.foot ? `<tfoot><tr>${cols.map(c => `<td class="${c.l ? 'l' : ''}">${c.ff ? c.ff(opts.foot) : c.f(opts.foot)}</td>`).join('')}</tr></tfoot>` : ''}</table></div>`;
-  el.querySelectorAll('th').forEach(th => { const go = () => { const k = th.dataset.k; if (st.k === k) st.d *= -1; else { st.k = k; st.d = cols.find(c => c.k === k).l ? 1 : -1; } D.table(el, rows, cols, st, opts); };
-    th.onclick = go; th.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+  const sortable = cols.filter(c => c.sort !== false);
+  el.innerHTML = `<div class="tb-sort"><label class="sr" for="${el.id}_s">Ordenar por</label><select class="select" id="${el.id}_s" aria-label="Ordenar por">${sortable.map(c => `<option value="${c.k}"${c.k === st.k ? ' selected' : ''}>Ordenar: ${esc(c.t)}</option>`).join('')}</select>
+    <button class="btn btn-ghost btn-sm" type="button" data-dir aria-label="Inverter ordem">${PJ.icon(st.d > 0 ? 'arrowUp' : 'arrowDown')}${st.d > 0 ? 'Crescente' : 'Decrescente'}</button></div>
+    <div class="tw stack"><table><thead><tr>${cols.map(c => `<th class="${c.sort === false ? '' : 'sortable'} ${st.k === c.k ? 'sorted' + (st.d > 0 ? ' asc' : '') : ''} ${c.l ? 'l' : ''}" ${c.sort === false ? '' : 'tabindex="0"'} data-k="${c.k}" scope="col">${esc(c.t)}</th>`).join('')}</tr></thead>
+    <tbody>${shown.map((r, i) => `<tr class="enter" style="--i:${Math.min(i, 20)}">${cols.map(c => `<td class="${c.l ? 'l' : ''} ${c.cls || ''}" data-label="${esc(c.t)}">${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody>
+    ${opts.foot ? `<tfoot><tr>${cols.map(c => `<td class="${c.l ? 'l' : ''} ${c.cls || ''}" data-label="${esc(c.t)}">${c.ff ? c.ff(opts.foot) : c.f(opts.foot)}</td>`).join('')}</tr></tfoot>` : ''}</table></div>`;
+  const sortBy = k => { if (st.k === k) st.d *= -1; else { st.k = k; st.d = cols.find(c => c.k === k).l ? 1 : -1; } D.table(el, rows, cols, st, opts); };
+  el.querySelectorAll('th.sortable').forEach(th => { th.onclick = () => sortBy(th.dataset.k); th.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sortBy(th.dataset.k); } }; });
+  el.querySelector('.tb-sort select').onchange = e => { st.k = e.target.value; st.d = cols.find(c => c.k === st.k).l ? 1 : -1; D.table(el, rows, cols, st, opts); };
+  el.querySelector('.tb-sort [data-dir]').onclick = () => { st.d *= -1; D.table(el, rows, cols, st, opts); };
 };
 // Colunas padrão das tabelas originais (Qtd vendas, Valor faturado, Custo frete, % frete, SLA médio, % das entregas)
 D.stdCols = (label, A, meta) => [
