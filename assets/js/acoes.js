@@ -10,11 +10,20 @@ const ST = { em_andamento: 'Em andamento', em_validacao: 'Em validação', plane
 const PRI = { critica: 'Crítica', alta: 'Alta', media: 'Média', baixa: 'Baixa' };
 const PRI_ORD = { critica: 0, alta: 1, media: 2, baixa: 3 };
 const COLS = 'id,titulo,descricao,responsavel,area,data_inicio,prazo,status,prioridade,resultado_esperado,resultado_obtido,progresso,created_at,updated_at';
-const A = PJ.Acoes = { list: [], events: [], tab: 'todas', mode: 'cards', pri: '', q: '' };
+// [v3.1] campos de análise usados na apresentação (Plano de Ação / antes × depois)
+const COLS_EXTRA = ',problema,envolvidos,solucao,data_conclusao,sla_antes_horas,sla_depois_horas,custo_antes_pct,custo_depois_pct,impacto_operacao';
+const semColuna = e => e && (e.code === '42703' || e.code === 'PGRST204' || /column|does not exist|schema cache/i.test(e.message || ''));
+const A = PJ.Acoes = { list: [], events: [], tab: 'todas', mode: 'cards', pri: '', q: '', extra: true };
 
 A.fetch = async () => {
   const [l, e] = await Promise.all([
-    PJ.q(PJ.sb.from('acoes').select(COLS).order('prazo', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false }), 'listar ações'),
+    (async () => { // [v3.1] tenta com os campos novos; se o SQL v3.1 ainda não rodou, usa os campos antigos
+      const ord = q => q.order('prazo', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
+      let r = await ord(PJ.sb.from('acoes').select(COLS + COLS_EXTRA));
+      if (r.error && semColuna(r.error)) { A.extra = false; console.warn('Campos v3.1 das ações ausentes — rode o supabase_schema.sql atualizado.'); return PJ.q(ord(PJ.sb.from('acoes').select(COLS)), 'listar ações'); }
+      if (r.error) return PJ.q(Promise.resolve(r), 'listar ações');
+      A.extra = true; return r.data;
+    })(),
     PJ.q(PJ.sb.from('acoes_eventos').select('id,acao_id,tipo,descricao,valor_de,valor_para,created_at').order('created_at', { ascending: false }).limit(60), 'listar eventos'),
   ]);
   A.list = l || []; A.events = e || [];
@@ -117,6 +126,23 @@ A.timeline = (body, list) => {
     ${ev.length ? `<div class="tl">${ev.map(e => `<div class="tl-i" style="--c:${evc[e.tipo]}"><b>${esc(names.get(e.acao_id) || 'Ação')}</b><p>${esc(e.descricao)}${e.valor_para ? `: ${e.valor_de ? esc(e.valor_de) + ' → ' : ''}<b>${esc(e.valor_para)}</b>` : ''}</p><small>${F.rel(e.created_at)}</small></div>`).join('')}</div>` : PJ.emptyHTML('Sem eventos ainda.', 'list')}</div></div>`;
 };
 
+// ---------- [v3.1] Análise da ação (problema, envolvidos, solução, antes × depois) ----------
+const num = v => v === null || v === undefined || v === '' ? null : +v;
+const fmtH = v => v === null ? '–' : `${String(+(+v).toFixed(1)).replace('.', ',')} h`;
+const fmtP = v => v === null ? '–' : `${String(+(+v).toFixed(2)).replace('.', ',')}%`;
+const detalheAnalise = a => {
+  const linhas = [['Problema tratado', a.problema], ['Envolvidos', a.envolvidos], ['Solução aplicada', a.solucao], ['Impacto na operação', a.impacto_operacao]].filter(([, v]) => v);
+  const sA = num(a.sla_antes_horas), sD = num(a.sla_depois_horas), cA = num(a.custo_antes_pct), cD = num(a.custo_depois_pct);
+  const ad = [];
+  if (sA !== null || sD !== null) ad.push(['SLA', fmtH(sA), fmtH(sD), sA !== null && sD !== null ? `${sD - sA <= 0 ? '▼' : '▲'} ${fmtH(Math.abs(sD - sA))}` : '', sA !== null && sD !== null && sD <= sA]);
+  if (cA !== null || cD !== null) ad.push(['Custo logístico', fmtP(cA), fmtP(cD), cA !== null && cD !== null ? `${cD - cA <= 0 ? '▼' : '▲'} ${String(+Math.abs(cD - cA).toFixed(2)).replace('.', ',')} p.p.` : '', cA !== null && cD !== null && cD <= cA]);
+  if (!linhas.length && !ad.length && !a.data_conclusao) return '';
+  return `<div style="display:flex;flex-direction:column;gap:10px">
+    ${a.data_conclusao ? `<div class="kv"><span>Concluída em</span><b style="font-weight:600">${F.date(a.data_conclusao)}</b></div>` : ''}
+    ${linhas.map(([k, v]) => `<div><div class="label">${k}</div><p style="margin:4px 0 0">${esc(v)}</p></div>`).join('')}
+    ${ad.length ? `<div><div class="label" style="margin-bottom:6px">Antes × depois</div><div class="kv">${ad.map(([k, an, de, d, bom]) => `<span>${k}</span><b style="font-weight:600">${an} → ${de}${d ? ` <span style="color:var(${bom ? '--good' : '--bad'})">${d}</span>` : ''}</b>`).join('')}</div></div>` : ''}</div>`;
+};
+
 // ---------- Detalhe ----------
 A.detail = async (id, fromDash) => {
   const a = A.list.find(x => x.id === id); if (!a) return;
@@ -130,12 +156,16 @@ A.detail = async (id, fromDash) => {
     <div><div class="fl" style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:6px"><span>Andamento</span><b class="num" style="color:var(--ink)">${a.progresso}%</b></div><div class="prog ${a.status === 'concluida' ? 'done' : ''}"><i style="--v:0" data-v="${a.progresso / 100}"></i></div></div>
     <div class="grid-form"><div class="kv">${kv.map(([k, v]) => `<span>${k}</span><b style="font-weight:600">${v && !/^<span/.test(v) ? esc(v) : (v || '–')}</b>`).join('')}</div>
       <div style="display:flex;flex-direction:column;gap:10px"><div><div class="label">Resultado esperado</div><p style="margin:4px 0 0">${esc(a.resultado_esperado || '–')}</p></div><div><div class="label">Resultado obtido</div><p style="margin:4px 0 0">${esc(a.resultado_obtido || '–')}</p></div></div></div>
+    ${detalheAnalise(a)}
     <div><div class="label" style="margin-bottom:8px">Histórico</div>${ev.length ? `<div class="tl">${ev.map(e => `<div class="tl-i"><b>${esc(e.descricao)}</b>${e.valor_para ? `<p>${e.valor_de ? esc(e.valor_de) + ' → ' : ''}${esc(e.valor_para)}</p>` : ''}<small>${F.dateTime(e.created_at)}</small></div>`).join('')}</div>` : '<span class="muted">Sem eventos.</span>'}</div></div>`,
     actions: can ? [{ label: 'Excluir', cls: 'btn-danger', icon: 'trash', onClick: async ({ close }) => { if (await A.remove(a)) close(); } }, { label: 'Editar', cls: 'btn-primary', icon: 'edit', onClick: ({ close }) => { close(); A.edit(a); } }] : [{ label: 'Fechar' }] });
   animateProg(m.body);
 };
 
 // ---------- Cadastro / edição ----------
+// [v3.1] sugestões de "envolvidos": transportadoras e filiais da base publicada
+const envolvidosOpc = () => { const D = PJ.D, o = (D && D.OPC && D.OPC.opcoes) || {}, k = (D && D.OPTKEY) || {};
+  return [...(o[k.par || 'par'] || []), ...(o[k.emp || 'emp'] || [])].filter(Boolean); };
 A.edit = a => {
   if (!PJ.can('acoes.editar')) return PJ.toast('Você não tem permissão para editar ações.', 'err');
   const v = a || { status: 'planejada', prioridade: 'media', progresso: 0, data_inicio: PJ.today() };
@@ -152,6 +182,18 @@ A.edit = a => {
     <div class="field full"><label for="acG">Percentual de andamento: <b id="acGv" class="num" style="color:var(--ink)">${v.progresso}%</b></label><input type="range" id="acG" min="0" max="100" step="5" value="${v.progresso}"></div>
     <div class="field full"><label for="acE">Resultado esperado</label><textarea class="input" id="acE" maxlength="2000">${esc(v.resultado_esperado || '')}</textarea></div>
     <div class="field full"><label for="acO">Resultado obtido</label><textarea class="input" id="acO" maxlength="2000">${esc(v.resultado_obtido || '')}</textarea></div>
+    ${A.extra ? `<!-- [v3.1] campos usados na apresentação -->
+    <div class="field full" style="margin-top:6px"><div class="label" style="color:var(--blue)">Análise e resultado <span class="muted" style="font-weight:500">· aparecem na apresentação (Plano de Ação e Ações finalizadas)</span></div></div>
+    <div class="field full"><label for="acPb">Problema tratado</label><input class="input" id="acPb" maxlength="1000" value="${esc(v.problema || '')}" placeholder="Ex.: Custo de frete acima da meta na unidade F12"></div>
+    <div class="field full"><label for="acEn">Unidades / transportadoras envolvidas</label><input class="input" id="acEn" maxlength="200" list="acEnL" value="${esc(v.envolvidos || '')}" placeholder="Ex.: Loggi, F12 (separe por vírgula; vazio = geral)">
+      <datalist id="acEnL">${envolvidosOpc().map(o => `<option value="${esc(o)}">`).join('')}</datalist></div>
+    <div class="field full"><label for="acSo">Solução aplicada</label><textarea class="input" id="acSo" maxlength="2000">${esc(v.solucao || '')}</textarea></div>
+    <div class="field"><label for="acSa">SLA antes (horas)</label><input class="input" type="number" id="acSa" min="0" step="0.1" inputmode="decimal" value="${v.sla_antes_horas ?? ''}"></div>
+    <div class="field"><label for="acSd">SLA depois (horas)</label><input class="input" type="number" id="acSd" min="0" step="0.1" inputmode="decimal" value="${v.sla_depois_horas ?? ''}"></div>
+    <div class="field"><label for="acCa">% custo antes</label><input class="input" type="number" id="acCa" min="0" max="100" step="0.01" inputmode="decimal" value="${v.custo_antes_pct ?? ''}"></div>
+    <div class="field"><label for="acCd">% custo depois</label><input class="input" type="number" id="acCd" min="0" max="100" step="0.01" inputmode="decimal" value="${v.custo_depois_pct ?? ''}"></div>
+    <div class="field"><label for="acDc">Data de conclusão</label><input class="input" type="date" id="acDc" value="${v.data_conclusao || ''}"><small class="muted">Preenchida automaticamente ao concluir.</small></div>
+    <div class="field"><label for="acIo">Impacto na operação</label><input class="input" id="acIo" maxlength="1000" value="${esc(v.impacto_operacao || '')}" placeholder="Ex.: menos reentregas"></div>` : ''}
     <div class="form-msg err full" id="acErr" hidden></div></form>`);
   const g = body.querySelector('#acG'), gv = body.querySelector('#acGv');
   g.oninput = () => gv.textContent = g.value + '%';
@@ -160,10 +202,19 @@ A.edit = a => {
     const val = id => body.querySelector(id).value.trim(), err = body.querySelector('#acErr');
     const rec = { titulo: val('#acT'), descricao: val('#acD') || null, responsavel: val('#acR') || null, area: val('#acA') || null, data_inicio: val('#acI') || null, prazo: val('#acP') || null,
       status: val('#acS'), prioridade: val('#acPr'), progresso: +g.value, resultado_esperado: val('#acE') || null, resultado_obtido: val('#acO') || null };
+    if (A.extra) { // [v3.1]
+      const n = id => { const t = val(id).replace(',', '.'); return t === '' ? null : +t; };
+      Object.assign(rec, { problema: val('#acPb') || null, envolvidos: val('#acEn') || null, solucao: val('#acSo') || null, impacto_operacao: val('#acIo') || null, data_conclusao: val('#acDc') || null,
+        sla_antes_horas: n('#acSa'), sla_depois_horas: n('#acSd'), custo_antes_pct: n('#acCa'), custo_depois_pct: n('#acCd') });
+    }
     body.querySelectorAll('.input').forEach(i => i.classList.remove('err'));
     const fail = (sel, msg) => { err.hidden = false; err.innerHTML = PJ.icon('alert') + esc(msg); if (sel) body.querySelector(sel).classList.add('err'); };
     if (rec.titulo.length < 2) return fail('#acT', 'Informe o nome da ação.');
     if (rec.data_inicio && rec.prazo && rec.prazo < rec.data_inicio) return fail('#acP', 'O prazo não pode ser anterior à data de início.');
+    if (A.extra) { // [v3.1] validações dos números (o banco também valida)
+      for (const [k, sel, max] of [['sla_antes_horas', '#acSa', 1e5], ['sla_depois_horas', '#acSd', 1e5], ['custo_antes_pct', '#acCa', 100], ['custo_depois_pct', '#acCd', 100]])
+        if (rec[k] !== null && (!isFinite(rec[k]) || rec[k] < 0 || rec[k] > max)) return fail(sel, max === 100 ? 'O % de custo deve estar entre 0 e 100.' : 'O SLA deve ser um número de horas maior ou igual a zero.');
+    }
     PJ.btnBusy(btn, true, 'Salvando…');
     try {
       const r = a ? await PJ.q(PJ.sb.from('acoes').update(rec).eq('id', a.id).select('id'), 'atualizar ação')

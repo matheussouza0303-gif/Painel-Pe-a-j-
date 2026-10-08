@@ -101,6 +101,8 @@ D.renderBars = () => {
     D.FILTERS.forEach(([k, lab]) => { if (D.F[k]) chips.push([k, `${esc(lab)}: <b>${esc(D.F[k])}</b>`]); });
     const n = D.activeCount();
     el.innerHTML = chips.map(([k, t]) => `<span class="chip">${t}<button type="button" data-rm="${k}" aria-label="Remover filtro">${PJ.icon('x')}</button></span>`).join('') +
+      // [v3.1] botão "Gerar Apresentação" (só aparece com permissão dados.ver e base publicada)
+      (PJ.Apresentacao ? PJ.Apresentacao.botaoHTML() : '') +
       `<button class="btn btn-ghost btn-sm" type="button" data-open-filters>${PJ.icon('filter')}Filtros${n ? ` <span class="fcount">${n}</span>` : ''}</button>`;
     el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const k = b.dataset.rm; if (k === 'dates') { D.F.dIni = D.F.dFim = ''; reload(); D.renderBars(); } else D.setFilter(k, ''); });
     el.querySelector('[data-open-filters]').onclick = D.openFilters;

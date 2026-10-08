@@ -5,7 +5,7 @@
 'use strict';
 const PJ = window.PJ = window.PJ || {};
 // Versão do app (mostrada em Configurações e no menu do usuário — ajuda a confirmar que a atualização chegou)
-PJ.VERSION = '3.0.1';
+PJ.VERSION = '3.1.0';
 console.info('PEÇA JÁ versão ' + PJ.VERSION);
 
 // ---------- DOM ----------
@@ -75,6 +75,7 @@ const P = {
   menu: 'M4 6h16M4 12h16M4 18h16',
   chevL: 'M15 18l-6-6 6-6', chevR: 'M9 18l6-6-6-6', chevD: 'M6 9l6 6 6-6', chevsL: 'M11 17l-5-5 5-5M18 17l-5-5 5-5',
   filter: 'M4 5h16M7 12h10M10 19h4',
+  present: 'M3 4h18M4 4v11h16V4M12 15v4M8 21l4-2 4 2M8 11l3-3 2 2 3-3', // [v3.1] Gerar Apresentação
   plus: 'M12 5v14M5 12h14',
   edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
