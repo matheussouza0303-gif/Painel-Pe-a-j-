@@ -83,13 +83,13 @@ async function passo1(m) {
   inp.onchange = () => { const f = inp.files[0]; if (f) passo2(m, f); };
   try {
     const h = await PJ.q(PJ.sb.from('conversao_importacoes').select('nome_arquivo,status,modo,total_registros,linhas_ativas,linhas_ignoradas,meses,criado_por_nome,created_at,concluida_em')
-      .neq('status', 'enviando').order('created_at', { ascending: false }).limit(8), 'histórico conversão');
+      .in('status', ['concluida', 'substituida']).order('created_at', { ascending: false }).limit(8), 'histórico conversão');
     const el = st.querySelector('#cviHist'); if (!el) return;
     const SITU = { concluida: '<span class="pill ok">Ativa</span>', substituida: '<span class="pill neutral">Substituída</span>' };
     el.innerHTML = h.length ? `<div class="tw stack"><table><thead><tr><th class="l">Data</th><th class="l">Arquivo</th><th class="l">Meses</th><th>Registros</th><th class="l">Por</th><th>Situação</th></tr></thead><tbody>${h.map(x => `<tr>
       <td class="l" data-label="Data">${esc(F.dateTime(x.concluida_em || x.created_at))}</td><td class="l" data-label="Arquivo">${esc(x.nome_arquivo)}</td>
       <td class="l" data-label="Meses">${esc((x.meses || []).map(d => F.mes(String(d).slice(0, 7))).join(', '))}${x.modo === 'tudo' ? ' <small class="muted">(base inteira)</small>' : ''}</td>
-      <td data-label="Registros">${F.int(x.total_registros)}${x.status === 'concluida' && x.linhas_ativas !== x.total_registros ? `<br><small class="muted">${F.int(x.linhas_ativas)} ativos</small>` : ''}</td>
+      <td data-label="Registros">${F.int(x.total_registros)}</td>
       <td class="l" data-label="Por">${esc(x.criado_por_nome || '–')}</td><td data-label="Situação">${SITU[x.status] || esc(x.status)}</td></tr>`).join('')}</tbody></table></div>`
       : '<span class="muted">Nenhuma atualização ainda.</span>';
   } catch (e) { const el = st.querySelector('#cviHist'); if (el) el.innerHTML = `<span class="muted">${esc(PJ.friendly(e))}</span>`; }
@@ -186,36 +186,61 @@ async function enviar(m, file, res, modo) {
   const st = m.body.querySelector('#cviStep'), R = res.registros;
   st.innerHTML = `<div class="cvi-prog"><div class="cvi-ptxt" id="cviPt">Preparando o envio…</div><div class="pbar"><i id="cviPb" style="--v:.02"></i></div><div class="help">Não feche esta janela. O painel continua mostrando a base anterior até o fim do envio.</div></div>`;
   const prog = (msg, p) => { const t = st.querySelector('#cviPt'), b = st.querySelector('#cviPb'); if (t) t.innerHTML = msg; if (b) b.style.setProperty('--v', Math.max(.02, Math.min(1, p))); };
-  enviando = true; let impId = null;
+  enviando = true; let impId = null, etapa = 'preparação';
   try {
-    // limpa envios meus que ficaram pela metade (ex.: navegador fechado)
-    await PJ.sb.from('conversao_importacoes').delete().eq('status', 'enviando').eq('criado_por', PJ.me._uid);
+    // [v3.2.1] tudo em passos curtos (o Supabase encerra comandos que passam de ~8 s)
+    etapa = 'limpeza de envios anteriores';
+    prog('Organizando envios anteriores…', .03);
+    await PJ.rpc('conversao_cancelar_envio', { p_id: null });
+    await limpar(n => prog(`Organizando envios anteriores… ${F.int(n)} linhas antigas removidas`, .04));
+    etapa = 'registro do envio';
     const ins = await PJ.q(PJ.sb.from('conversao_importacoes').insert({ nome_arquivo: String(file.name).slice(0, 255), aba: res.aba ? String(res.aba).slice(0, 255) : null,
       modo, total_registros: R.length, linhas_ignoradas: res.linhasErro || 0 }).select('id').single(), 'criar envio de conversão');
     impId = ins.id;
-    const LOT = 1000, lots = []; for (let i = 0; i < R.length; i += LOT) lots.push(R.slice(i, i + LOT));
+    const LOT = 500, lots = []; for (let i = 0; i < R.length; i += LOT) lots.push(R.slice(i, i + LOT));
     let next = 0, done = 0;
-    const send = async lot => { const payload = lot.map(r => Object.assign({ importacao_id: impId }, r));
-      let { error } = await PJ.sb.from('conversao_vendas').insert(payload);
-      if (error && !error.code) ({ error } = await PJ.sb.from('conversao_vendas').insert(payload)); // falha de rede: 1 nova tentativa
-      if (error) throw error; };
-    const worker = async () => { while (next < lots.length) { const lot = lots[next++]; await send(lot); done += lot.length;
+    // envia um lote; se o banco demorar (tempo limite) ou a rede falhar, divide o lote e tenta de novo
+    const send = async (lot, tent = 0) => {
+      const payload = lot.map(r => Object.assign({ importacao_id: impId }, r));
+      const { error } = await PJ.sb.from('conversao_vendas').insert(payload);
+      if (!error) return;
+      const lento = error.code === '57014' || !error.code || /timeout|fetch/i.test(error.message || '');
+      if (lento && lot.length > 50 && tent < 4) { const h = Math.ceil(lot.length / 2); await send(lot.slice(0, h), tent + 1); await send(lot.slice(h), tent + 1); return; }
+      if (lento && tent < 4) { await new Promise(r => setTimeout(r, 800 * (tent + 1))); return send(lot, tent + 1); }
+      throw error; };
+    const worker = async () => { while (next < lots.length) { const i = next++; etapa = `envio do lote ${i + 1} de ${lots.length}`; await send(lots[i]); done += lots[i].length;
       prog(`Enviando para o banco… <b>${F.int(done)}</b> de ${F.int(R.length)}`, .05 + .8 * done / R.length); } };
-    await Promise.all([worker(), worker(), worker()]);
+    await Promise.all([worker(), worker()]);
+    etapa = 'conferência e troca da base';
     prog('Conferindo e gravando a nova base…', .92);
     const r = await PJ.rpc('conversao_concluir_importacao', { p_id: impId });
     enviando = false;
     sucesso(m, file, res, r);
     PJ.Notif && PJ.Notif.refresh && PJ.Notif.refresh();
     PJ.Conversao && PJ.Conversao.recarregar && PJ.Conversao.recarregar();
+    // remove as linhas que deixaram de valer, em segundo plano (não afeta o painel)
+    limpar().catch(e => console.warn('Limpeza da conversão adiada:', e));
   } catch (e) {
-    console.error('Erro ao enviar a base de conversão:', e);
-    if (impId) { const { error: de } = await PJ.sb.from('conversao_importacoes').delete().eq('id', impId).eq('status', 'enviando'); if (de) console.error('Erro ao limpar envio:', de); }
+    console.error(`Erro ao enviar a base de conversão (${etapa}):`, e);
+    if (impId) { try { await PJ.rpc('conversao_cancelar_envio', { p_id: impId }); limpar().catch(() => {}); } catch (de) { console.error('Erro ao cancelar envio:', de); } }
     enviando = false;
-    st.innerHTML = `<div class="form-msg err">${PJ.icon('alert')}<div><b>A base de conversão não foi atualizada.</b><br>${esc(/Envio incompleto/i.test(e && e.message || '') ? 'O envio ficou incompleto (conexão instável?). Tente novamente.' : PJ.friendly(e))}<br><span class="muted">Os dados que já estavam no painel continuam intactos.</span></div></div>
+    const msg = /Envio incompleto/i.test(e && e.message || '') ? 'O envio ficou incompleto (conexão instável?). Tente novamente.' : PJ.friendly(e);
+    st.innerHTML = `<div class="form-msg err">${PJ.icon('alert')}<div><b>A base de conversão não foi atualizada.</b><br>${esc(msg)}<br><span class="muted">Etapa: ${esc(etapa)}${e && e.code ? ` · código ${esc(e.code)}` : ''}. Os dados que já estavam no painel continuam intactos.</span></div></div>
       <div class="cvi-acts"><button class="btn btn-ghost" type="button" id="cviVolta">${PJ.icon('chevL')}Voltar</button><div class="grow"></div><button class="btn btn-primary" type="button" id="cviTenta">${PJ.icon('refresh')}Tentar de novo</button></div>`;
     st.querySelector('#cviVolta').onclick = () => passo1(m); st.querySelector('#cviTenta').onclick = () => enviar(m, file, res, modo);
   }
+}
+// Apaga em lotes curtos as linhas que não valem mais (meses substituídos / envios cancelados)
+async function limpar(onProg) {
+  let total = 0, lote = 5000;
+  for (let i = 0; i < 400; i++) {
+    let n;
+    try { n = await PJ.rpc('conversao_limpar', { p_limite: lote }); }
+    catch (e) { if (e && e.code === '57014' && lote > 500) { lote = Math.floor(lote / 2); continue; } throw e; }
+    total += n; onProg && onProg(total);
+    if (n < lote && n === 0) break;
+  }
+  return total;
 }
 function sucesso(m, file, res, r) {
   const st = m.body.querySelector('#cviStep');

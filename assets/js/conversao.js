@@ -199,7 +199,7 @@ CV.carregar = async () => {
     renderHead(); renderBar();
     if (!S.opc.total) { body.classList.remove('cv-busy'); return renderVazioBase(); }
     const per = periodoAnterior(), p = payload();
-    const reqs = [PJ.rpc('conversao_resumo', { p_filtros: p, p_bloco: 'a' }), PJ.rpc('conversao_resumo', { p_filtros: p, p_bloco: 'b' })];
+    const reqs = [PJ.rpc('conversao_resumo', { p_filtros: p, p_bloco: 'tudo' }), Promise.resolve({})]; // [v3.2.1] uma única consulta
     if (per && per.ok) { reqs.push(PJ.rpc('conversao_resumo', { p_filtros: payload({ mes: per.prev }), p_bloco: 'total' }));
       if (per.modo === 'ultimo') reqs.push(PJ.rpc('conversao_resumo', { p_filtros: payload({ mes: per.cur }), p_bloco: 'total' })); }
     const [a, b, prev, cur] = await Promise.all(reqs);
