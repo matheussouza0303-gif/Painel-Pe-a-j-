@@ -11,7 +11,7 @@
      sempre os do banco, e nada sensível fica salvo no aparelho.
    Ao mudar a lista de arquivos abaixo, aumente VERSION.
    ===================================================================== */
-const VERSION = 'pecaja-v3.1.0';
+const VERSION = 'pecaja-v3.2.0';
 const SHELL = `${VERSION}-shell`;
 const RUNTIME = `${VERSION}-cdn`;
 
@@ -30,6 +30,10 @@ const APP_SHELL = [
   './assets/js/relatorio.js',
   './assets/js/apresentacao-analise.js', // [v3.1]
   './assets/js/apresentacao.js',         // [v3.1]
+  './assets/js/conversao.js',            // [v3.2]
+  './assets/js/conversao-importar.js',   // [v3.2]
+  './assets/js/conversao-leitor.js',     // [v3.2]
+  './assets/vendor/jszip/jszip.min.js',  // [v3.2]
   './assets/js/admin.js',
   './assets/js/notificacoes.js',
   './assets/js/auth.js',

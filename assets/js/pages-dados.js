@@ -279,8 +279,9 @@ PJ.pages.indicadores = dataPage({
   title: 'Indicadores',
   head: { eyebrow: 'Performance', title: 'Indicadores', sub: 'Scorecard mensal consolidado da base publicada.' },
   html: () => `<section class="grid stagger">${D.card('iTb', 'Scorecard mensal', 'Clique no título da coluna para ordenar.', { cls: 'c12' })}</section>
+    <section class="section"><div class="card c12 lift cv-link"><div class="card-h"><div><h3>${PJ.icon('funnel')} Conversão de vendas PEÇA JÁ</h3><div class="d">Painel próprio com vendas aptas, vendas Peça Já e % de conversão por mês, unidade, tipo de venda, segmento e liderança.</div></div><a class="btn btn-primary btn-sm" href="#/conversao">${PJ.icon('funnel')}Abrir Conversão</a></div></div></section>
     <section class="section"><div class="section-h"><h2>Indicadores aguardando fonte de dados</h2></div><div class="grid stagger">
-    ${soonCard('funnel', 'Conversão', 'A base atual traz apenas vendas faturadas. Para medir conversão é preciso a base de orçamentos/cotações (com status ganho/perdido).', 'c4')}
+    
     ${soonCard('box', 'Pedidos em andamento e pendentes', 'A planilha não traz o status do pedido. Inclua uma coluna de status (ex.: em rota, pendente, entregue) para habilitar estes indicadores.', 'c4')}
     ${soonCard('usercheck', 'Clientes aptos', 'Requer o cadastro de clientes com o critério de aptidão ao PEÇA JÁ.', 'c4')}</div></section>`,
   update(A, meta) {
@@ -294,13 +295,7 @@ PJ.pages.indicadores = dataPage({
   },
 });
 
-PJ.pages.conversao = {
-  title: 'Conversão',
-  mount(view) { view.innerHTML = D.pageHead({ eyebrow: 'Performance', title: 'Conversão', filters: false }) + `<div class="grid stagger">
-    ${soonCard('funnel', 'Módulo preparado — aguardando a base de orçamentos', 'A conversão (orçamentos → vendas) não pode ser calculada com a base atual, que contém apenas vendas faturadas e entregas. Quando a base de orçamentos/cotações estiver disponível, ela poderá ser importada para uma nova tabela e este módulo passa a exibir taxa de conversão por filial, equipe e segmento. Nenhum número é exibido aqui para não mostrar dados inventados.', 'c12')}
-    <div class="card c12"><div class="card-h"><div><h3>Enquanto isso</h3><div class="d">Indicadores de volume disponíveis hoje.</div></div></div><div class="ctas" style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-ghost" href="#/vendas">${PJ.icon('cart')}Vendas</a><a class="btn btn-ghost" href="#/indicadores">${PJ.icon('gauge')}Scorecard mensal</a></div></div></div>`; },
-  update() {},
-};
+// [v3.2] A página Conversão agora tem dashboard próprio em assets/js/conversao.js (base de conversão independente).
 
 // =====================================================================
 // CLIENTES

@@ -156,5 +156,48 @@ function spark(el, values, color = 'var(--c-sky)') {
   el.innerHTML = `<svg class="spark" viewBox="0 0 ${W} ${H}" width="100%" height="30" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".3"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path class="sa" d="${d}L${W},${H}L0,${H}Z" fill="url(#${id})" style="stroke:none"/><path d="${d}" pathLength="1" stroke="${color}"/></svg>`;
 }
 
-PJ.charts = { hbars, donut, columns, line, spark };
+// ---------- [v3.2] Combo: colunas (eixo esquerdo) + linha em % (eixo direito) ----------
+// data: [{key,label,bars:[..],line,tip}]  opts: {series:[{name,color}], lineName, lineColor, fmtBar, fmtLine, empty, aria, onClick(key)}
+function combo(el, data, o = {}) {
+  if (!el) return;
+  if (!data || !data.length) { el.innerHTML = PJ.emptyHTML(o.empty || 'Sem dados nos filtros atuais.', 'barChart'); return; }
+  const S = o.series || [{ name: '', color: 'var(--s1)' }], n = data.length;
+  // largura = a do cartão (texto em tamanho real); se houver muitas categorias, rola na horizontal
+  const minG = S.length > 1 ? 58 : 44, cw = Math.max(320, (el.clientWidth || 600) - 4);
+  const W = Math.max(cw, n * minG + 120), H = o.height || 300, L = 54, R = 62, B = 40, T = 26, ph = H - T - B;
+  const mv = niceMax(Math.max(1, ...data.flatMap(d => d.bars.map(v => +v || 0))));
+  const lv = data.map(d => d.line).filter(v => v != null && isFinite(v));
+  const lmax = lv.length ? Math.min(1, Math.max(.04, Math.ceil(Math.max(...lv) * 1.15 / .04) * .04)) : 1; // passos de 1 p.p., no máximo 100%
+  const fB = o.fmtBar || (v => PJ.fmt.int(v)), fL = o.fmtLine || (v => PJ.fmt.pct(v, 1));
+  const gw = (W - L - R) / n, bw = Math.min(40, gw * (S.length > 1 ? .3 : .5));
+  const showLab = n <= 16, lineLab = n <= 24;
+  const X = i => L + gw * i + gw / 2, Yb = v => T + ph - ph * (+v || 0) / mv, Yl = v => T + ph - ph * v / lmax;
+  let s = '';
+  for (let i = 0; i <= 4; i++) { const y = T + ph - ph * i / 4;
+    s += `<line class="grid-l" x1="${L}" x2="${W - R + 6}" y1="${y}" y2="${y}"/><text x="${L - 8}" y="${y + 4}" text-anchor="end" style="font-size:11px">${esc(fB(mv * i / 4))}</text>`
+      + `<text x="${W - R + 10}" y="${y + 4}" text-anchor="start" style="font-size:11px;fill:${o.lineColor || 'var(--warn-bar)'}">${esc(fL(lmax * i / 4))}</text>`; }
+  data.forEach((d, i) => {
+    const cx = X(i), tot = S.length * bw + (S.length - 1) * 3;
+    s += `<g class="cg" data-k="${esc(d.key)}" ${o.onClick ? 'style="cursor:pointer"' : ''}><rect class="hit" x="${cx - gw / 2}" y="${T}" width="${gw}" height="${ph}" fill="transparent" data-tip="${esc(d.tip || '')}"/>`;
+    d.bars.forEach((v, j) => { const y = Yb(v), h = Math.max(T + ph - y, v > 0 ? 2 : 0), x = cx - tot / 2 + j * (bw + 3);
+      s += `<rect class="col" x="${x}" y="${T + ph - h}" width="${bw}" height="${h}" rx="4" fill="${S[j].color}" style="animation-delay:${i * 35 + j * 60}ms;pointer-events:none"/>`;
+      if (showLab && S.length === 1) s += `<text class="vlab" x="${x + bw / 2}" y="${T + ph - h - 6}" text-anchor="middle" style="animation-delay:${400 + i * 35}ms">${esc(fB(v))}</text>`; });
+    const maxCh = Math.max(4, Math.floor(gw / 6.6)), lab = String(d.label ?? ''), curto = lab.length > maxCh ? lab.slice(0, maxCh - 1) + '…' : lab;
+    s += `</g><text class="xlab" x="${cx}" y="${T + ph + 18}" text-anchor="middle">${curto !== lab ? `<title>${esc(lab)}</title>` : ''}${esc(curto)}</text>`;
+    if (d.sub) s += `<text x="${cx}" y="${T + ph + 33}" text-anchor="middle" style="font-size:10.5px;fill:var(--muted)">${esc(d.sub)}</text>`;
+  });
+  const pts = data.map((d, i) => d.line != null && isFinite(d.line) ? [X(i), Yl(d.line), d.line] : null);
+  let path = '', started = false;
+  pts.forEach(p => { if (!p) { started = false; return; } path += `${started ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`; started = true; });
+  const lc = o.lineColor || 'var(--warn-bar)';
+  if (path) s += `<path class="line" pathLength="1" d="${path}" stroke="${lc}" style="pointer-events:none"/>`;
+  pts.forEach((p, i) => { if (!p) return;
+    s += `<circle class="pt" cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--bg)" stroke="${lc}" stroke-width="2.2" style="animation-delay:${600 + i * 40}ms;pointer-events:none"/>`;
+    if (lineLab) s += `<text class="vlab" x="${p[0]}" y="${p[1] - 9}" text-anchor="middle" style="fill:${lc};font-weight:700;animation-delay:${700 + i * 40}ms">${esc(fL(p[2]))}</text>`; });
+  const lg = `<div class="legend">${S.map(x => `<span class="li"><i style="background:${x.color}"></i>${esc(x.name)}</span>`).join('')}${o.lineName ? `<span class="li"><i style="background:${lc};height:3px;border-radius:2px"></i>${esc(o.lineName)}</span>` : ''}</div>`;
+  el.innerHTML = `${lg}<div class="tw"><svg class="ch-svg" viewBox="0 0 ${W} ${H}" style="min-width:${W > cw ? W : 0}px" role="img" aria-label="${esc(o.aria || 'Gráfico de colunas e linha')}">${s}</svg></div>`;
+  if (o.onClick) el.querySelectorAll('.cg').forEach(g => { g.onclick = () => o.onClick(g.dataset.k); });
+}
+
+PJ.charts = { hbars, donut, columns, line, spark, combo };
 })();
