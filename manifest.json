@@ -1,0 +1,30 @@
+{
+  "id": "./",
+  "name": "PEÇA JÁ",
+  "short_name": "PEÇA JÁ",
+  "description": "Centro de Controle do PEÇA JÁ — custo logístico, SLA, parceiros e ações de evolução.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./?source=pwa#/dashboard",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "theme_color": "#050A34",
+  "background_color": "#050A34",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "assets/icons/icon-48.png",  "sizes": "48x48",   "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icons/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Dashboard", "url": "./#/dashboard", "icons": [{ "src": "assets/icons/icon-96.png", "sizes": "96x96" }] },
+    { "name": "Ações PEÇA JÁ", "url": "./#/acoes", "icons": [{ "src": "assets/icons/icon-96.png", "sizes": "96x96" }] }
+  ]
+}

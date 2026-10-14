@@ -11,7 +11,7 @@
      sempre os do banco, e nada sensível fica salvo no aparelho.
    Ao mudar a lista de arquivos abaixo, aumente VERSION.
    ===================================================================== */
-const VERSION = 'pecaja-v3.2.1';
+const VERSION = 'pecaja-v3.2.2';
 const SHELL = `${VERSION}-shell`;
 const RUNTIME = `${VERSION}-cdn`;
 

@@ -5,7 +5,7 @@
 'use strict';
 const PJ = window.PJ = window.PJ || {};
 // Versão do app (mostrada em Configurações e no menu do usuário — ajuda a confirmar que a atualização chegou)
-PJ.VERSION = '3.2.1';
+PJ.VERSION = '3.2.2';
 console.info('PEÇA JÁ versão ' + PJ.VERSION);
 
 // ---------- DOM ----------

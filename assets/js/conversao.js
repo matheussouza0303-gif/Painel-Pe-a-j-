@@ -211,7 +211,7 @@ CV.carregar = async () => {
     S.tab.pag = 0; CV.carregarTabela();
   } catch (e) {
     if (my !== S.seq) return; console.error('Erro na conversão:', e);
-    S.erro = PJ.friendly(e); renderBanner();
+    S.erro = PJ.friendly(e); S.erroCod = e && e.code; renderBanner();
   } finally { if (my === S.seq) { body.classList.remove('cv-busy'); } PJ.loading(false); }
 };
 
@@ -226,7 +226,7 @@ function renderHead() {
 function renderBanner() {
   const el = $('#cvBanner'); if (!el) return;
   let h = '';
-  if (S.erro) h = `<div class="banner err">${PJ.icon('alert')}<div class="grow">${esc(S.erro)}</div><button class="btn btn-sm btn-ghost" type="button" id="cvRetry">${PJ.icon('refresh')}Tentar de novo</button></div>`;
+  if (S.erro) h = `<div class="banner err">${PJ.icon('alert')}<div class="grow">${esc(S.erro)}${S.erroCod === '57014' && PJ.can('conversao.importar') ? '<br><small>O banco não respondeu a tempo. Rode o arquivo <b>supabase_conversao.sql</b> no SQL Editor do Supabase: ele limpa envios que falharam, atualiza as estatísticas e mostra um diagnóstico no final.</small>' : ''}</div><button class="btn btn-sm btn-ghost" type="button" id="cvRetry">${PJ.icon('refresh')}Tentar de novo</button></div>`;
   else if (S.loaded && S.res && !+S.res.total.vendas) h = `<div class="banner info">${PJ.icon('filter')}<div class="grow">Nenhum registro para os filtros escolhidos. Ajuste ou limpe os filtros.</div><button class="btn btn-sm btn-ghost" type="button" id="cvClr2">${PJ.icon('x')}Limpar filtros</button></div>`;
   el.innerHTML = h;
   const r = $('#cvRetry'); if (r) r.onclick = () => { S.opc = S.opc && S.opc.total != null ? S.opc : null; CV.carregar(); };

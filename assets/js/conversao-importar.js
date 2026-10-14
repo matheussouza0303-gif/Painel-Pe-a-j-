@@ -191,8 +191,10 @@ async function enviar(m, file, res, modo) {
     // [v3.2.1] tudo em passos curtos (o Supabase encerra comandos que passam de ~8 s)
     etapa = 'limpeza de envios anteriores';
     prog('Organizando envios anteriores…', .03);
-    await PJ.rpc('conversao_cancelar_envio', { p_id: null });
-    await limpar(n => prog(`Organizando envios anteriores… ${F.int(n)} linhas antigas removidas`, .04));
+    // [v3.2.2] limpeza é "melhor esforço": se o banco estiver lento, segue com o envio (as sobras não afetam o painel)
+    try { await PJ.rpc('conversao_cancelar_envio', { p_id: null });
+      await limpar(n => prog(`Organizando envios anteriores… ${F.int(n)} linhas antigas removidas`, .04), 20); }
+    catch (le) { console.warn('Limpeza prévia adiada:', le); }
     etapa = 'registro do envio';
     const ins = await PJ.q(PJ.sb.from('conversao_importacoes').insert({ nome_arquivo: String(file.name).slice(0, 255), aba: res.aba ? String(res.aba).slice(0, 255) : null,
       modo, total_registros: R.length, linhas_ignoradas: res.linhasErro || 0 }).select('id').single(), 'criar envio de conversão');
@@ -231,12 +233,12 @@ async function enviar(m, file, res, modo) {
   }
 }
 // Apaga em lotes curtos as linhas que não valem mais (meses substituídos / envios cancelados)
-async function limpar(onProg) {
-  let total = 0, lote = 5000;
-  for (let i = 0; i < 400; i++) {
+async function limpar(onProg, max = 400) {
+  let total = 0, lote = 2000;
+  for (let i = 0; i < max; i++) {
     let n;
     try { n = await PJ.rpc('conversao_limpar', { p_limite: lote }); }
-    catch (e) { if (e && e.code === '57014' && lote > 500) { lote = Math.floor(lote / 2); continue; } throw e; }
+    catch (e) { if (e && e.code === '57014' && lote > 200) { lote = Math.floor(lote / 2); continue; } throw e; }
     total += n; onProg && onProg(total);
     if (n < lote && n === 0) break;
   }
