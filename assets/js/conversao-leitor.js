@@ -76,42 +76,67 @@ function textOf(xml) { // concatena <t> (ignora a guia fonética <rPh>)
 }
 function colIndex(ref) { let n = 0; for (let i = 0; i < ref.length; i++) { const c = ref.charCodeAt(i); if (c < 65 || c > 90) break; n = n * 26 + (c - 64); } return n - 1; }
 
-// Lê linhas de uma aba (XML). keep: Set de colunas a guardar (null = todas). Para em maxRows.
-function readRows(xml, ss, keep, maxRows, onProg) {
-  const rows = []; let pos = 0, seq = 0; const L = xml.length;
-  const cellRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
-  let nextProg = 0;
-  while (true) {
-    const a = xml.indexOf('<row', pos); if (a < 0) break;
-    const gt = xml.indexOf('>', a); if (gt < 0) break;
-    const head = xml.slice(a, gt + 1);
-    let rowNum = (head.match(/\sr="(\d+)"/) || [])[1]; rowNum = rowNum ? +rowNum : seq + 1; seq = rowNum;
-    if (head.endsWith('/>')) { pos = gt + 1; continue; }
-    const b = xml.indexOf('</row>', gt); if (b < 0) break;
-    const body = xml.slice(gt + 1, b); pos = b + 6;
-    const vals = []; let ci = -1, m; cellRe.lastIndex = 0;
-    while ((m = cellRe.exec(body))) {
-      const at = m[1]; const r = at.match(/\sr="([A-Z]+)\d*"/); ci = r ? colIndex(r[1]) : ci + 1;
-      if (keep && !keep.has(ci)) continue;
-      const inner = m[2]; if (inner == null) continue;
-      const t = (at.match(/\st="(\w+)"/) || [])[1];
-      let v = null;
-      if (t === 'inlineStr') v = textOf(inner);
-      else { const vm = inner.match(/<v>([\s\S]*?)<\/v>/); if (vm) {
-        const raw = vm[1];
-        if (t === 's') v = ss[+raw] != null ? ss[+raw] : '';
-        else if (t === 'str' || t === 'e' || t === 'd') v = decodeXml(raw);
-        else if (t === 'b') v = raw === '1';
-        else { const n = Number(raw); v = isFinite(n) ? n : decodeXml(raw); }
-      } }
-      vals[ci] = v;
-    }
-    rows.push({ n: rowNum, v: vals });
-    if (maxRows && rows.length >= maxRows) break;
-    if (onProg && pos > nextProg) { onProg(pos / L); nextProg = pos + L / 50; }
+// Textos repetidos (ex.: "SEGURADORA" em milhares de linhas) viram uma única cópia na memória
+const POOL = new Map();
+const intern = v => { if (typeof v !== 'string' || v.length > 120) return v; const o = POOL.get(v); if (o !== undefined) return o; POOL.set(v, v); return v; };
+// Lê uma linha <row>…</row> (head = tag de abertura, body = conteúdo)
+const cellRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+function parseRow(head, body, ss, keep, st) {
+  let rowNum = (head.match(/\sr="(\d+)"/) || [])[1]; rowNum = rowNum ? +rowNum : st.seq + 1; st.seq = rowNum;
+  const vals = []; let ci = -1, m; cellRe.lastIndex = 0;
+  while ((m = cellRe.exec(body))) {
+    const at = m[1]; const r = at.match(/\sr="([A-Z]+)\d*"/); ci = r ? colIndex(r[1]) : ci + 1;
+    if (keep && !keep.has(ci)) continue;
+    const inner = m[2]; if (inner == null) continue;
+    const t = (at.match(/\st="(\w+)"/) || [])[1];
+    let v = null;
+    if (t === 'inlineStr') v = intern(textOf(inner));
+    else { const vm = inner.match(/<v>([\s\S]*?)<\/v>/); if (vm) {
+      const raw = vm[1];
+      if (t === 's') v = ss[+raw] != null ? ss[+raw] : '';
+      else if (t === 'str' || t === 'e' || t === 'd') v = intern(decodeXml(raw));
+      else if (t === 'b') v = raw === '1';
+      else { const n = Number(raw); v = isFinite(n) ? n : decodeXml(raw); }
+    } }
+    vals[ci] = v;
   }
-  return rows;
+  return { n: rowNum, v: vals };
 }
+// Processa as linhas completas de um trecho de XML; devolve quanto do texto foi consumido
+function consume(buf, ss, keep, st, rows, maxRows) {
+  let pos = 0;
+  while (true) {
+    const a = buf.indexOf('<row', pos); if (a < 0) { pos = Math.max(pos, buf.length - 8); break; }
+    const gt = buf.indexOf('>', a); if (gt < 0) { pos = a; break; }
+    const head = buf.slice(a, gt + 1);
+    if (head.endsWith('/>')) { const r = (head.match(/\sr="(\d+)"/) || [])[1]; st.seq = r ? +r : st.seq + 1; pos = gt + 1; continue; }
+    const b = buf.indexOf('</row>', gt); if (b < 0) { pos = a; break; }
+    rows.push(parseRow(head, buf.slice(gt + 1, b), ss, keep, st)); pos = b + 6;
+    if (maxRows && rows.length >= maxRows) { st.done = true; break; }
+  }
+  return pos;
+}
+// [v3.3] Leitura em fluxo (pedaço por pedaço): a aba pode ter centenas de MB de XML
+// (base completa do ano) sem estourar o limite de texto do navegador.
+function streamRows(zf, ss, keep, maxRows, onProg) {
+  return new Promise((ok, ko) => {
+    const rows = [], st = { seq: 0, done: false }; let buf = '', fim = false, last = 0;
+    const dec = new TextDecoder('utf-8');
+    const h = zf.internalStream('uint8array');
+    const termina = () => { if (fim) return; fim = true; try { h.pause(); } catch (e) { /* ok */ } ok(rows); };
+    h.on('data', (chunk, meta) => {
+      if (fim) return;
+      buf += dec.decode(chunk, { stream: true });
+      buf = buf.slice(consume(buf, ss, keep, st, rows, maxRows));
+      if (st.done) return termina();
+      if (onProg && meta && meta.percent - last >= 1) { last = meta.percent; onProg(meta.percent / 100); }
+    }).on('end', () => { if (fim) return; buf += dec.decode(); consume(buf, ss, keep, st, rows, maxRows); termina(); })
+      .on('error', e => { if (!fim) { fim = true; ko(e); } });
+    h.resume();
+  });
+}
+// Compatibilidade (testes): lê de um texto já carregado
+function readRows(xml, ss, keep, maxRows) { const rows = [], st = { seq: 0, done: false }; consume(xml + '<row', ss, keep, st, rows, maxRows); return rows; }
 
 function mapHeader(cells) {
   const idx = {}, found = [];
@@ -143,13 +168,13 @@ async function lerXlsx(JSZip, buf, prog) {
   const ssXml = (await get('xl/sharedStrings.xml')) || '';
   const ss = []; { const re = /<si>([\s\S]*?)<\/si>|<si\/>/g; let m; while ((m = re.exec(ssXml))) ss.push(m[1] ? textOf(m[1]) : ''); }
   for (const sh of sheets) {
-    const xml = await get(sh.path); if (!xml) continue;
-    const top = readRows(xml, ss, null, 15);
+    const zf = zip.file(sh.path) || zip.file(sh.path.replace(/^\//, '')); if (!zf) continue;
+    const top = await streamRows(zf, ss, null, 15);
     const h = findHeader(top);
     if (!h || !COLS.filter(c => c[2]).every(c => h.map[c[0]] != null)) { if (h && h.score >= 6) return { aba: sh.name, header: h, rows: null, date1904 }; continue; }
     prog(`Lendo a aba “${sh.name}”…`, 0.12);
     const keep = new Set(Object.values(h.map));
-    const all = readRows(xml, ss, keep, 0, p => prog(`Lendo a aba “${sh.name}”…`, 0.12 + p * 0.6));
+    const all = await streamRows(zf, ss, keep, 0, p => prog(`Lendo a aba “${sh.name}”… ${Math.round(p * 100)}%`, 0.12 + p * 0.6));
     return { aba: sh.name, header: h, rows: all.filter(r => r.n > h.n), date1904 };
   }
   return { aba: null, header: null, rows: null, date1904, abas: sheets.map(s => s.name) };
@@ -215,13 +240,13 @@ function normalizar(lido, prog) {
   const addErro = (linha, campo, valor, msg) => { nErros++; if (erros.length < MAX_ERROS) erros.push({ linha, campo, valor: valor == null ? '' : String(valor).slice(0, 60), msg }); };
   const total = rows.length; let next = 0;
   for (let i = 0; i < total; i++) {
-    const r = rows[i], v = r.v;
+    const r = rows[i], v = r.v; rows[i] = null; // libera a memória da linha bruta
     if (i >= next) { prog && prog('Validando as linhas…', 0.75 + 0.2 * i / total); next = i + 2000; }
     if (!v || !v.some(x => x != null && String(x).trim() !== '')) continue; // linha em branco
     const rec = { linha: r.n }; let ok = true;
     for (const [k, , req, tipo, nome] of COLS) {
       const ix = map[k], raw = ix == null ? null : v[ix];
-      if (tipo === 't') { if (raw == null || raw === '') { rec[k] = null; continue; } let s = String(raw).trim(); if (s.length > MAXLEN) { s = s.slice(0, MAXLEN); avisos.textoCortado++; } rec[k] = s === '' ? null : s;
+      if (tipo === 't') { if (raw == null || raw === '') { rec[k] = null; continue; } let s = String(raw).trim(); if (s.length > MAXLEN) { s = s.slice(0, MAXLEN); avisos.textoCortado++; } rec[k] = s === '' ? null : intern(s);
         if (req && rec[k] == null) { ok = false; addErro(r.n, nome, raw, 'Campo obrigatório vazio'); } continue; }
       if (tipo === 'cod') { const s = codigo(raw).slice(0, 60); rec[k] = s || null; if (req && !s) { ok = false; addErro(r.n, nome, raw, 'Código da venda vazio'); } continue; }
       if (tipo === 'date') { const d = validDate(parseDate(raw, date1904)); rec[k] = d; if (!d) { ok = false; addErro(r.n, nome, raw, raw == null || raw === '' ? 'Data vazia' : 'Data inválida (use DD/MM/AAAA)'); } continue; }
@@ -266,7 +291,7 @@ function finalizar(lido, prog) {
   if (!lido.header) return { ok: false, semAba: true, abas: lido.abas || [] };
   if (!lido.rows) { const h = lido.header; return { ok: false, aba: lido.aba, faltam: COLS.filter(c => c[2] && h.map[c[0]] == null).map(c => c[4]), encontradas: (h.cells || []).filter(x => x != null && String(x).trim() !== '').map(String) }; }
   const out = normalizar(lido, prog);
-  out.aba = lido.aba; out.linhasLidas = lido.rows.length;
+  out.aba = lido.aba; out.linhasLidas = lido.rows.length; POOL.clear();
   prog('Pronto.', 1);
   return out;
 }

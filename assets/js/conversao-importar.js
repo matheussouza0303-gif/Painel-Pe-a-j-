@@ -112,7 +112,7 @@ async function passo2(m, file) {
   if (!res.registros.length) return falha(m, `Nenhuma linha válida para importar.${res.nErros ? ` ${F.int(res.linhasErro)} linha(s) com erro — veja abaixo.` : ''}`, true, res);
   // meses que já existem na base atual (serão substituídos)
   let atuais = {};
-  try { const o = await PJ.rpc('conversao_opcoes'); (o.opcoes && o.opcoes.mes || []).forEach(([k, n]) => atuais[k] = +n); IMP._totalAtual = +o.total || 0; } catch (e) { atuais = {}; }
+  try { const o = await PJ.rpc('conversao_opcoes'); (o.meses || []).forEach(([k, n]) => atuais[k] = +n); IMP._totalAtual = +o.total || 0; } catch (e) { atuais = {}; }
   previa(m, file, res, atuais);
 }
 
@@ -203,7 +203,7 @@ async function enviar(m, file, res, modo) {
     let next = 0, done = 0;
     // envia um lote; se o banco demorar (tempo limite) ou a rede falhar, divide o lote e tenta de novo
     const send = async (lot, tent = 0) => {
-      const payload = lot.map(r => Object.assign({ importacao_id: impId }, r));
+      const payload = lot.map(r => Object.assign({ importacao_id: impId }, r)); // todas as linhas com as mesmas colunas (exigência da API)
       const { error } = await PJ.sb.from('conversao_vendas').insert(payload);
       if (!error) return;
       const lento = error.code === '57014' || !error.code || /timeout|fetch/i.test(error.message || '');

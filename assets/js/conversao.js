@@ -174,8 +174,46 @@ function alterna(k, v) {
 // =====================================================================
 // CARGA DE DADOS
 // =====================================================================
+// [v3.3] Tudo é consultado MÊS A MÊS, em paralelo, e somado aqui. Cada consulta fica pequena,
+// então a base pode crescer (ano inteiro) sem estourar o tempo limite do Supabase.
+const PARALELO = 4;
+async function pool(itens, fn, n = PARALELO) {
+  const out = new Array(itens.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, itens.length) }, async () => { while (i < itens.length) { const k = i++; out[k] = await fn(itens[k], k); } }));
+  return out;
+}
+const somaGrupos = listas => { const m = new Map();
+  listas.forEach(l => (l || []).forEach(g => { const a = m.get(g.key) || { key: g.key, vendas: 0, aptas: 0, pj: 0, fat: 0 };
+    a.vendas += +g.vendas || 0; a.aptas += +g.aptas || 0; a.pj += +g.pj || 0; a.fat += +g.fat || 0; m.set(g.key, a); }));
+  return [...m.values()]; };
+const ordTop = (a, b) => (b.aptas - a.aptas) || (b.pj - a.pj) || String(a.key).localeCompare(String(b.key), 'pt-BR');
+const todosMeses = () => ((S.opc && S.opc.meses) || []).map(([k]) => k).sort();
+const mesesDe = filtros => (filtros.mes && filtros.mes.length ? filtros.mes : todosMeses()).slice().sort();
+const GRUPOS = ['por_mes', 'por_dia', 'por_tipo', 'por_seg_cliente', 'por_seg_equipe', 'por_lideranca', 'por_unidade', 'por_equipe', 'por_raio', 'por_status', 'por_regiao'];
+async function resumo(filtros, bloco) {
+  const ms = mesesDe(filtros);
+  if (ms.length <= 1) return PJ.rpc('conversao_resumo', { p_filtros: ms.length ? Object.assign({}, filtros, { mes: ms }) : filtros, p_bloco: bloco });
+  const partes = await pool(ms, m => PJ.rpc('conversao_resumo', { p_filtros: Object.assign({}, filtros, { mes: [m] }), p_bloco: bloco, p_top: 0 }));
+  const T = { vendas: 0, aptas: 0, pj: 0, fat_pj: 0, valor: 0, data_min: null, data_max: null };
+  partes.forEach(p => { const t = p.total || {}; ['vendas', 'aptas', 'pj', 'fat_pj', 'valor'].forEach(k => T[k] += +t[k] || 0);
+    if (t.data_min && (!T.data_min || t.data_min < T.data_min)) T.data_min = t.data_min; if (t.data_max && (!T.data_max || t.data_max > T.data_max)) T.data_max = t.data_max; });
+  const out = { total: T }; if (bloco === 'total') return out;
+  GRUPOS.forEach(k => out[k] = somaGrupos(partes.map(p => p[k])));
+  ['top_vendedores', 'top_clientes'].forEach(k => out[k] = somaGrupos(partes.map(p => p[k])).sort(ordTop).slice(0, 20));
+  T.unidades = out.por_unidade.filter(g => g.key !== '(vazio)').length;
+  T.unidades_aptas = out.por_unidade.filter(g => g.key !== '(vazio)' && g.aptas > 0).length;
+  return out;
+}
 CV.carregarOpcoes = async () => {
-  S.opc = await PJ.rpc('conversao_opcoes');
+  const meta = await PJ.rpc('conversao_opcoes');
+  const ms = (meta.meses || []).map(([k]) => k);
+  const partes = await pool(ms, m => PJ.rpc('conversao_opcoes', { p_mes: m }));
+  const acc = {}; let dmin = null, dmax = null;
+  partes.forEach(p => { Object.entries(p.opcoes || {}).forEach(([k, arr]) => { const mm = acc[k] || (acc[k] = new Map()); arr.forEach(([v, n]) => mm.set(v, (mm.get(v) || 0) + (+n || 0))); });
+    if (p.data_min && (!dmin || p.data_min < dmin)) dmin = p.data_min; if (p.data_max && (!dmax || p.data_max > dmax)) dmax = p.data_max; });
+  const opcoes = {}; Object.entries(acc).forEach(([k, mm]) => opcoes[k] = [...mm.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'pt-BR')));
+  opcoes.mes = meta.meses || [];
+  S.opc = { ultima: meta.ultima, total: +meta.total || 0, meses: meta.meses || [], opcoes, data_min: dmin, data_max: dmax };
   // remove dos filtros salvos valores que não existem mais na base
   FILTROS.forEach(f => { const ok = new Set(opts(f.k).map(o => o.v)); S.f[f.k] = S.f[f.k].filter(v => ok.has(v)); });
   salvar();
@@ -199,16 +237,16 @@ CV.carregar = async () => {
     renderHead(); renderBar();
     if (!S.opc.total) { body.classList.remove('cv-busy'); return renderVazioBase(); }
     const per = periodoAnterior(), p = payload();
-    const reqs = [PJ.rpc('conversao_resumo', { p_filtros: p, p_bloco: 'tudo' }), Promise.resolve({})]; // [v3.2.1] uma única consulta
-    if (per && per.ok) { reqs.push(PJ.rpc('conversao_resumo', { p_filtros: payload({ mes: per.prev }), p_bloco: 'total' }));
-      if (per.modo === 'ultimo') reqs.push(PJ.rpc('conversao_resumo', { p_filtros: payload({ mes: per.cur }), p_bloco: 'total' })); }
+    const reqs = [resumo(p, 'tudo'), Promise.resolve({})];
+    if (per && per.ok) { reqs.push(resumo(payload({ mes: per.prev }), 'total'));
+      if (per.modo === 'ultimo') reqs.push(resumo(payload({ mes: per.cur }), 'total')); }
     const [a, b, prev, cur] = await Promise.all(reqs);
     if (my !== S.seq) return;
     S.res = Object.assign({}, a, b);
     S.cmp = per && per.ok ? { per, prev: prev.total, cur: per.modo === 'ultimo' ? cur.total : S.res.total } : per ? { per, semDados: true } : null;
     S.loaded = true;
     renderTudo();
-    S.tab.pag = 0; CV.carregarTabela();
+    S.tab.pag = 0; S.tabCache = null; renderDims(); CV.carregarTabela();
   } catch (e) {
     if (my !== S.seq) return; console.error('Erro na conversão:', e);
     S.erro = PJ.friendly(e); S.erroCod = e && e.code; renderBanner();
@@ -332,33 +370,69 @@ function renderTudo() {
 // TABELA DETALHADA (paginada no banco)
 // =====================================================================
 const dimsAtuais = () => S.detalhe ? [] : (S.dims.length ? S.dims : DIMS_PADRAO);
+// Mês da visão "venda a venda" (uma lista por mês, para a consulta continuar rápida)
+const mesDetalhe = () => { const ms = mesesDe(payload()); if (!S.detMes || !ms.includes(S.detMes)) S.detMes = ms[ms.length - 1] || null; return S.detMes; };
 function renderDims() {
   const el = $('#cvDims'); if (!el) return;
+  const ms = S.opc ? mesesDe(payload()) : [];
   el.innerHTML = `<span class="label">Agrupar por</span>` + DIMS_ESCOLHA.map(d => `<button type="button" class="tgl ${!S.detalhe && S.dims.includes(d) ? 'on' : ''}" data-d="${d}" ${S.detalhe ? 'disabled' : ''} aria-pressed="${!S.detalhe && S.dims.includes(d)}">${esc(DIMS[d])}</button>`).join('')
-    + `<label class="rep-check cv-det"><input type="checkbox" id="cvDet" ${S.detalhe ? 'checked' : ''}> Venda a venda</label>`;
+    + `<label class="rep-check cv-det"><input type="checkbox" id="cvDet" ${S.detalhe ? 'checked' : ''}> Venda a venda</label>`
+    + (S.detalhe && ms.length ? `<select class="select cv-detmes" id="cvDetMes" aria-label="Mês da lista venda a venda">${ms.slice().reverse().map(m => `<option value="${m}" ${m === mesDetalhe() ? 'selected' : ''}>${esc(F.mesF(m))}</option>`).join('')}</select>` : '');
   el.querySelectorAll('[data-d]').forEach(b => b.onclick = () => { const d = b.dataset.d, i = S.dims.indexOf(d);
     if (i >= 0) { if (S.dims.length === 1) return PJ.toast('Mantenha pelo menos uma coluna de agrupamento.', 'info'); S.dims.splice(i, 1); } else S.dims.push(d);
     S.dims = DIMS_ESCOLHA.filter(x => S.dims.includes(x)); PJ.pref.set('conv.dims', S.dims);
     if (!S.dims.includes(S.tab.ordem) && !['vendas', 'aptas', 'pj', 'conv', 'fat'].includes(S.tab.ordem)) S.tab.ordem = 'aptas';
-    S.tab.pag = 0; renderDims(); CV.carregarTabela(); });
-  $('#cvDet').onchange = e => { S.detalhe = e.target.checked; PJ.pref.set('conv.detalhe', S.detalhe); S.tab.ordem = S.detalhe ? 'dia' : 'aptas'; S.tab.desc = true; S.tab.pag = 0; renderDims(); CV.carregarTabela(); };
+    S.tab.pag = 0; S.tabCache = null; renderDims(); CV.carregarTabela(); });
+  $('#cvDet').onchange = e => { S.detalhe = e.target.checked; PJ.pref.set('conv.detalhe', S.detalhe); S.tab.ordem = S.detalhe ? 'dia' : 'aptas'; S.tab.desc = true; S.tab.pag = 0; S.tabCache = null; renderDims(); CV.carregarTabela(); };
+  const dm = $('#cvDetMes'); if (dm) dm.onchange = () => { S.detMes = dm.value; S.tab.pag = 0; CV.carregarTabela(); };
 }
 const METR = [['vendas', 'Vendas', r => F.int(r.vendas)], ['aptas', 'Vendas aptas', r => F.int(r.aptas)], ['pj', 'Vendas Peça Já', r => F.int(r.pj)],
   ['conv', 'Conversão', r => r.conv == null ? '–' : `<b>${F.pct(+r.conv, 2)}</b>`], ['fat', 'Faturamento PJ', r => F.brl(r.fat)]];
 const cellDim = (d, v) => d === 'mes' ? esc(F.mes(v)) : d === 'dia' ? esc(F.date(v)) : esc(v);
+// Tabela agrupada: busca todos os grupos mês a mês, soma aqui e ordena/pagina no navegador
+async function gruposTabela(dims) {
+  const chave = JSON.stringify([payload(), dims]);
+  if (S.tabCache && S.tabCache.chave === chave) return S.tabCache;
+  const ms = mesesDe(payload()); let cortado = false;
+  const partes = await pool(ms, m => PJ.rpc('conversao_tabela', { p_filtros: payload({ mes: [m] }), p_dims: dims, p_busca: null, p_ordem: 'aptas', p_desc: true, p_limite: 50000, p_offset: 0 }));
+  const acc = new Map();
+  partes.forEach(r => { if (+r.total > r.linhas.length) cortado = true;
+    r.linhas.forEach(x => { const k = dims.map(d => x[d]).join('\u0001'); const a = acc.get(k) || Object.assign(Object.fromEntries(dims.map(d => [d, x[d]])), { vendas: 0, aptas: 0, pj: 0, fat: 0 });
+      a.vendas += +x.vendas || 0; a.aptas += +x.aptas || 0; a.pj += +x.pj || 0; a.fat += +x.fat || 0; acc.set(k, a); }); });
+  const linhas = [...acc.values()]; linhas.forEach(x => { x.conv = x.aptas > 0 ? x.pj / x.aptas : null; x._busca = norm(dims.map(d => d === 'mes' ? F.mesF(x[d]) : x[d]).join(' ')); });
+  S.tabCache = { chave, linhas, cortado };
+  return S.tabCache;
+}
+function ordenaLocal(linhas) {
+  const k = S.tab.ordem, d = S.tab.desc ? -1 : 1;
+  return linhas.slice().sort((a, b) => { const x = a[k], y = b[k];
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pt-BR', { numeric: true })) * d || ordTop(a, b); });
+}
 CV.carregarTabela = async () => {
   const my = ++S.tseq, el = $('#cvTab'); if (!el || !S.loaded) return;
   el.classList.add('cv-busy');
   try {
-    const r = await PJ.rpc('conversao_tabela', { p_filtros: payload(), p_dims: dimsAtuais(), p_busca: S.tab.busca || null, p_ordem: S.tab.ordem, p_desc: S.tab.desc, p_limite: S.tab.por, p_offset: S.tab.pag * S.tab.por });
-    if (my !== S.tseq) return;
-    S.tab.total = +r.total || 0;
-    const dims = r.colunas || dimsAtuais(), T = S.res.total;
-    if (!r.linhas.length) { el.innerHTML = PJ.emptyHTML(S.tab.busca ? 'Nenhuma linha encontrada para a busca.' : 'Sem registros nos filtros atuais.', 'table'); renderPag(); return; }
+    let dims, linhas, aviso = '';
+    if (S.detalhe) {
+      const mes = mesDetalhe();
+      const r = await PJ.rpc('conversao_tabela', { p_filtros: payload({ mes: mes ? [mes] : [] }), p_dims: [], p_busca: S.tab.busca || null, p_ordem: S.tab.ordem, p_desc: S.tab.desc, p_limite: S.tab.por, p_offset: S.tab.pag * S.tab.por });
+      if (my !== S.tseq) return;
+      dims = r.colunas; linhas = r.linhas; S.tab.total = +r.total || 0;
+      aviso = mesesDe(payload()).length > 1 ? `<div class="help" style="margin-bottom:6px">Lista venda a venda de <b>${esc(F.mesF(mes))}</b> — escolha outro mês ao lado de “Venda a venda”.</div>` : '';
+    } else {
+      dims = dimsAtuais(); const c = await gruposTabela(dims); if (my !== S.tseq) return;
+      const nq = norm(S.tab.busca).trim(); const filtradas = nq ? c.linhas.filter(x => x._busca.includes(nq)) : c.linhas;
+      const ord = ordenaLocal(filtradas); S.tab.total = ord.length; S._tabOrd = ord;
+      linhas = ord.slice(S.tab.pag * S.tab.por, (S.tab.pag + 1) * S.tab.por);
+      if (c.cortado) aviso = '<div class="help" style="margin-bottom:6px">⚠ Muitas combinações: parte das linhas não coube. Use menos colunas de agrupamento ou mais filtros.</div>';
+    }
+    const T = S.res.total;
+    if (!linhas.length) { el.innerHTML = aviso + PJ.emptyHTML(S.tab.busca ? 'Nenhuma linha encontrada para a busca.' : 'Sem registros nos filtros atuais.', 'table'); renderPag(); return; }
     const th = (k, t, l) => `<th class="sortable ${S.tab.ordem === k ? 'sorted' + (S.tab.desc ? '' : ' asc') : ''} ${l ? 'l' : ''}" tabindex="0" data-k="${k}" scope="col">${esc(t)}</th>`;
-    el.innerHTML = `<div class="tw stack"><table><thead><tr>${dims.map(d => th(d, DIMS[d] || d, true)).join('')}${METR.map(([k, t]) => th(k, t)).join('')}</tr></thead>
-      <tbody>${r.linhas.map((x, i) => `<tr class="enter" style="--i:${Math.min(i, 20)}">${dims.map(d => `<td class="l" data-label="${esc(DIMS[d] || d)}">${cellDim(d, x[d])}</td>`).join('')}${METR.map(([k, t, f]) => `<td data-label="${esc(t)}">${f(x)}</td>`).join('')}</tr>`).join('')}</tbody>
-      <tfoot><tr><td class="l" colspan="${dims.length}" data-label="Total">Total dos filtros (${F.int(S.tab.total)} linhas)</td>${METR.map(([k, t, f]) => `<td data-label="${esc(t)}">${f({ vendas: T.vendas, aptas: T.aptas, pj: T.pj, conv: +T.aptas > 0 ? T.pj / T.aptas : null, fat: T.fat_pj })}</td>`).join('')}</tr></tfoot></table></div>`;
+    el.innerHTML = aviso + `<div class="tw stack"><table><thead><tr>${dims.map(d => th(d, DIMS[d] || d, true)).join('')}${METR.map(([k, t]) => th(k, t)).join('')}</tr></thead>
+      <tbody>${linhas.map((x, i) => `<tr class="enter" style="--i:${Math.min(i, 20)}">${dims.map(d => `<td class="l" data-label="${esc(DIMS[d] || d)}">${cellDim(d, x[d])}</td>`).join('')}${METR.map(([k, t, f]) => `<td data-label="${esc(t)}">${f(x)}</td>`).join('')}</tr>`).join('')}</tbody>
+      ${S.detalhe ? '' : `<tfoot><tr><td class="l" colspan="${dims.length}" data-label="Total">Total dos filtros (${F.int(S.tab.total)} linhas)</td>${METR.map(([k, t, f]) => `<td data-label="${esc(t)}">${f({ vendas: T.vendas, aptas: T.aptas, pj: T.pj, conv: +T.aptas > 0 ? T.pj / T.aptas : null, fat: T.fat_pj })}</td>`).join('')}</tr></tfoot>`}</table></div>`;
     el.querySelectorAll('th.sortable').forEach(h => { const go = () => { const k = h.dataset.k; if (S.tab.ordem === k) S.tab.desc = !S.tab.desc; else { S.tab.ordem = k; S.tab.desc = !DIMS[k]; } S.tab.pag = 0; CV.carregarTabela(); };
       h.onclick = go; h.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
     renderPag();
@@ -381,15 +455,18 @@ CV.exportar = async btn => {
   if (!S.loaded) return;
   PJ.btnBusy(btn, true, 'Exportando…');
   try {
-    const dims = dimsAtuais(), LOTE = 50000; let linhas = [], off = 0, total = Infinity, cols = null;
-    while (off < total && off < 500000) { const r = await PJ.rpc('conversao_tabela', { p_filtros: payload(), p_dims: dims, p_busca: S.tab.busca || null, p_ordem: S.tab.ordem, p_desc: S.tab.desc, p_limite: LOTE, p_offset: off });
-      total = +r.total; cols = r.colunas; linhas = linhas.concat(r.linhas); off += LOTE; if (!r.linhas.length) break; }
+    let linhas = [], cols, total = 0;
+    if (S.detalhe) { const mes = mesDetalhe(), LOTE = 50000; let off = 0; total = Infinity;
+      while (off < total && off < 500000) { const r = await PJ.rpc('conversao_tabela', { p_filtros: payload({ mes: mes ? [mes] : [] }), p_dims: [], p_busca: S.tab.busca || null, p_ordem: S.tab.ordem, p_desc: S.tab.desc, p_limite: LOTE, p_offset: off });
+        total = +r.total; cols = r.colunas; linhas = linhas.concat(r.linhas); off += LOTE; if (!r.linhas.length) break; } }
+    else { cols = dimsAtuais(); const c = await gruposTabela(cols); const nq = norm(S.tab.busca).trim();
+      linhas = ordenaLocal(nq ? c.linhas.filter(x => x._busca.includes(nq)) : c.linhas); total = linhas.length; }
     const num = (v, d) => v == null || v === '' ? '' : (+v).toFixed(d).replace('.', ',');
     const q = v => { const s = String(v ?? ''); return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const head = cols.map(d => DIMS[d] || d).concat(['Vendas', 'Vendas aptas', 'Vendas Peça Já', 'Conversão (%)', 'Faturamento Peça Já (R$)']);
     const body = linhas.map(x => cols.map(d => q(d === 'dia' ? F.date(x[d]) : x[d])).concat([x.vendas, x.aptas, x.pj, x.conv == null ? '' : num(x.conv * 100, 2), num(x.fat, 2)]).join(';'));
     const T = S.res.total;
-    const filtrosTxt = ativos().map(f => `${f.t}: ${S.f[f.k].map(v => lbl(f.k, v)).join(', ')}`).join(' | ') || 'sem filtros';
+    const filtrosTxt = (S.detalhe ? `Venda a venda: ${F.mesF(mesDetalhe())} | ` : '') + ativos().map(f => `${f.t}: ${S.f[f.k].map(v => lbl(f.k, v)).join(', ')}`).join(' | ') || 'sem filtros';
     const csv = '﻿' + [`Conversão de Vendas — PEÇA JÁ;Filtros: ${q(filtrosTxt)}`, head.join(';'), ...body,
       ['Total dos filtros'].concat(cols.slice(1).map(() => '')).concat([T.vendas, T.aptas, T.pj, +T.aptas ? num(T.pj / T.aptas * 100, 2) : '', num(T.fat_pj, 2)]).join(';')].join('\r\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
